@@ -1,0 +1,464 @@
+```html
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>
+        {% if stock %}
+            {{ stock.symbol }} {{ stock.name }} - STOCK AI
+        {% else %}
+            股票詳細資料 - STOCK AI
+        {% endif %}
+    </title>
+
+    <link rel="stylesheet"
+          href="{% static 'stocks/style.css' %}">
+
+</head>
+
+
+<body>
+
+
+<!-- =========================
+     導覽列
+========================= -->
+
+<header class="navbar">
+
+    <div class="logo">
+        STOCK AI
+    </div>
+
+    <div class="nav-title">
+        股票資料分析與預測平台
+    </div>
+
+</header>
+
+
+
+<!-- =========================
+     主要內容
+========================= -->
+
+<main class="detail-container">
+
+
+    {% if stock %}
+
+
+        <!-- =========================
+             返回
+        ========================= -->
+
+        <a href="{% url 'index' %}"
+           class="back-link">
+
+            ← 返回股票搜尋
+
+        </a>
+
+
+
+        <!-- =========================
+             股票標題
+        ========================= -->
+
+        <section class="stock-header">
+
+            <div>
+
+                <div class="stock-code">
+
+                    {{ stock.symbol }}
+
+                </div>
+
+                <h1>
+
+                    {{ stock.name }}
+
+                </h1>
+
+                <span class="market-tag">
+
+                    {{ stock.market }}
+
+                </span>
+
+            </div>
+
+
+            <div class="stock-status">
+
+                市場狀態
+
+                <strong>
+                    模擬資料
+                </strong>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- =========================
+             即時價格
+        ========================= -->
+
+        <section class="price-section">
+
+
+            <div class="price-card main-price">
+
+                <span>
+                    最新價格
+                </span>
+
+                <strong>
+                    --.--
+                </strong>
+
+                <small>
+                    尚未連接即時股票資料
+                </small>
+
+            </div>
+
+
+            <div class="price-card">
+
+                <span>
+                    今日漲跌
+                </span>
+
+                <strong>
+                    --.--
+                </strong>
+
+            </div>
+
+
+            <div class="price-card">
+
+                <span>
+                    成交量
+                </span>
+
+                <strong>
+                    --
+                </strong>
+
+            </div>
+
+
+            <div class="price-card">
+
+                <span>
+                    更新時間
+                </span>
+
+                <strong>
+                    --
+                </strong>
+
+            </div>
+
+
+        </section>
+
+
+
+        <!-- =========================
+             股價圖
+        ========================= -->
+
+        <section class="panel">
+
+
+            <div class="panel-header">
+
+                <div>
+
+                    <h2>
+                        股價走勢
+                    </h2>
+
+                    <p>
+                        歷史價格與趨勢分析
+                    </p>
+
+                </div>
+
+
+                <div class="period-buttons">
+
+                    <button>1D</button>
+                    <button>1W</button>
+                    <button>1M</button>
+                    <button>3M</button>
+                    <button>1Y</button>
+
+                </div>
+
+            </div>
+
+
+
+            <div class="chart-area">
+
+                <div class="chart-icon">
+                    📈
+                </div>
+
+                <h3>
+                    股價圖表
+                </h3>
+
+                <p>
+                    後續將加入歷史股價資料與 K 線圖
+                </p>
+
+            </div>
+
+
+        </section>
+
+
+
+        <!-- =========================
+             技術指標
+        ========================= -->
+
+        <section class="panel">
+
+            <div class="panel-header">
+
+                <div>
+
+                    <h2>
+                        技術指標
+                    </h2>
+
+                    <p>
+                        股票技術分析
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <div class="indicator-grid">
+
+
+                <div class="indicator-card">
+
+                    <span>
+                        MA5
+                    </span>
+
+                    <strong>
+                        --
+                    </strong>
+
+                    <small>
+                        5 日移動平均
+                    </small>
+
+                </div>
+
+
+                <div class="indicator-card">
+
+                    <span>
+                        MA20
+                    </span>
+
+                    <strong>
+                        --
+                    </strong>
+
+                    <small>
+                        20 日移動平均
+                    </small>
+
+                </div>
+
+
+                <div class="indicator-card">
+
+                    <span>
+                        MA60
+                    </span>
+
+                    <strong>
+                        --
+                    </strong>
+
+                    <small>
+                        60 日移動平均
+                    </small>
+
+                </div>
+
+
+                <div class="indicator-card">
+
+                    <span>
+                        RSI
+                    </span>
+
+                    <strong>
+                        --
+                    </strong>
+
+                    <small>
+                        相對強弱指標
+                    </small>
+
+                </div>
+
+
+            </div>
+
+        </section>
+
+
+
+        <!-- =========================
+             AI 預測
+        ========================= -->
+
+        <section class="ai-panel">
+
+
+            <div class="ai-title">
+
+                <div class="ai-icon">
+                    AI
+                </div>
+
+                <div>
+
+                    <h2>
+                        AI 股票預測
+                    </h2>
+
+                    <p>
+                        Machine Learning Prediction
+                    </p>
+
+                </div>
+
+            </div>
+
+
+
+            <div class="ai-content">
+
+
+                <div class="prediction-box">
+
+                    <span>
+                        預測明日價格
+                    </span>
+
+                    <strong>
+                        --.--
+                    </strong>
+
+                </div>
+
+
+                <div class="prediction-box">
+
+                    <span>
+                        預測方向
+                    </span>
+
+                    <strong>
+                        --
+                    </strong>
+
+                </div>
+
+
+                <div class="prediction-box">
+
+                    <span>
+                        模型
+                    </span>
+
+                    <strong>
+                        尚未建立
+                    </strong>
+
+                </div>
+
+
+            </div>
+
+
+            <div class="ai-note">
+
+                ※ 目前為 V1.5 介面，AI 預測功能將於後續版本加入。
+
+            </div>
+
+
+        </section>
+
+
+
+    {% else %}
+
+
+        <!-- =========================
+             找不到股票
+        ========================= -->
+
+        <section class="not-found">
+
+            <div class="not-found-icon">
+                ?
+            </div>
+
+            <h1>
+                找不到股票
+            </h1>
+
+            <p>
+                找不到指定的股票資料。
+            </p>
+
+            <a href="{% url 'index' %}"
+               class="back-button">
+
+                返回股票搜尋
+
+            </a>
+
+        </section>
+
+
+    {% endif %}
+
+
+</main>
+
+
+</body>
+
+</html>
+```

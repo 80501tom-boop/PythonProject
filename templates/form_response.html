@@ -1,0 +1,33 @@
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <style>
+    body{
+      background-color: #d1fce8;
+    }
+  </style>
+</head>
+<body>
+  <h1>
+    {{ username }}{% if usersex == "male" %}先生{% else %}小姐{% endif %}您好!
+  </h1>
+  <div>
+    <p>您的學歷為:{{ userschool }}</p> 
+    您喜歡的活動如下：
+    <ul>
+      {% for interest in userinterest %}
+        <li>{{ interest }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  <div>
+    您對於使用臉書經營社群的看法如下：<br>
+    {{ userthought }}
+  </div>
+  <div>
+    <a href="/homework3/"><button class="btn">回首頁</button></a>
+    <a href="/show_all/"><button class="btn">查看所有資料</button></a>
+  </div>
+</body>
+</html>

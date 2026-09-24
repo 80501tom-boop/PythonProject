@@ -1,0 +1,242 @@
+{% load static %}
+
+<!DOCTYPE html>
+
+<html lang="zh-Hant">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>STOCK AI 股票分析平台</title>
+
+    <link rel="stylesheet"
+          href="{% static 'stocks/style.css' %}">
+
+</head>
+
+
+<body>
+
+
+<!-- =========================
+     導覽列
+========================= -->
+
+<header class="navbar">
+
+    <div class="logo">
+        STOCK AI
+    </div>
+
+    <div class="nav-title">
+        股票資料分析與預測平台
+    </div>
+
+</header>
+
+
+
+<!-- =========================
+     主要內容
+========================= -->
+
+<main class="container">
+
+
+    <!-- 標題 -->
+
+    <section class="hero">
+
+        <h1>
+            股票搜尋
+        </h1>
+
+        <p>
+            輸入股票代號或股票名稱
+        </p>
+
+
+        <!-- =========================
+             搜尋表單
+        ========================= -->
+
+        <form method="GET"
+              action="/"
+              class="search-form">
+
+            <input
+                type="text"
+                name="q"
+                value="{{ query }}"
+                placeholder="例如：2330 或 台積電"
+                autocomplete="off"
+            >
+
+            <button type="submit">
+                搜尋
+            </button>
+
+        </form>
+
+
+    </section>
+
+
+
+    <!-- =========================
+         搜尋結果
+    ========================= -->
+
+    <section class="stock-section">
+
+
+        {% if query %}
+
+            <h2>
+                搜尋「{{ query }}」的結果
+            </h2>
+
+        {% else %}
+
+            <h2>
+                股票清單
+            </h2>
+
+        {% endif %}
+
+
+
+        {% if stocks %}
+
+
+            <div class="stock-grid">
+
+
+                {% for stock in stocks %}
+
+
+                    <a
+                        href="{% url 'stock_detail' stock.symbol %}"
+                        class="stock-card"
+                    >
+
+                        <div class="stock-symbol">
+
+                            {{ stock.symbol }}
+
+                        </div>
+
+
+                        <div class="stock-name">
+
+                            {{ stock.name }}
+
+                        </div>
+
+
+                        <div class="stock-market">
+
+                            {{ stock.market }}
+
+                        </div>
+
+
+                        <div class="stock-link">
+
+                            查看詳細資料 →
+
+                        </div>
+
+                    </a>
+
+
+                {% endfor %}
+
+
+            </div>
+
+
+        {% else %}
+
+
+            <!-- 沒有搜尋結果 -->
+
+            <div class="no-result">
+
+                <h3>
+                    找不到股票
+                </h3>
+
+                <p>
+                    請確認股票代號或股票名稱是否正確。
+                </p>
+
+            </div>
+
+
+        {% endif %}
+
+
+    </section>
+
+
+
+    <!-- =========================
+         未來功能
+    ========================= -->
+
+    <section class="features">
+
+
+        <div class="feature-card">
+
+            <h3>
+                MySQL
+            </h3>
+
+            <p>
+                儲存股票與歷史價格資料
+            </p>
+
+        </div>
+
+
+        <div class="feature-card">
+
+            <h3>
+                Data Analysis
+            </h3>
+
+            <p>
+                使用 Pandas 分析股票資料
+            </p>
+
+        </div>
+
+
+        <div class="feature-card">
+
+            <h3>
+                AI Prediction
+            </h3>
+
+            <p>
+                使用機器學習進行價格預測
+            </p>
+
+        </div>
+
+
+    </section>
+
+
+</main>
+
+
+</body>
+
+</html>

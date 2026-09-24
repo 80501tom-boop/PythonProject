@@ -1,0 +1,62 @@
+{% load static %}
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+	<title>個人小檔案</title>
+	<style>
+      body{
+        background-color: #d1fce8;
+      }
+    </style>
+  </head>	
+  <body>
+    <div style="text-align: center;"><img src="{% static 'image/profile1.jpg' %}"></div>
+    <form method="post" action="{% url 'homework3' %}">
+      {% csrf_token %}
+      <fieldset>
+        <legend>個人資訊</legend>
+        姓&nbsp;&nbsp;&nbsp;&nbsp;名：
+        <input type="text" name="username" id="username" size="20"><br>
+        性&nbsp;&nbsp;&nbsp;&nbsp;別：
+        <input type="radio" name="usersex" id="usersex_male" value="male">男
+        <input type="radio" name="usersex" id="usersex_female" value="female">女<br>
+        最高學歷：
+        <select name="userschool">
+          <option value="高中以下">高中以下
+          <option value="大專院校">大專院校
+          <option value="碩士">碩士</option>
+          <option value="博士">博士</option>
+          <option value="其它">其它</option>
+        </select><br>
+      </fieldset><br>      
+      <fieldset>
+        <legend>其它資訊</legend> 
+        您喜歡下列哪些活動（可複選）？
+        <input type="checkbox" name="userinterest" id="userinterest_reading" value="閱讀">閱讀
+        <input type="checkbox" name="userinterest" id="userinterest_sports" value="打球">打球
+        <input type="checkbox" name="userinterest" id="userinterest_shopping" value="逛街">逛街
+        <input type="checkbox" name="userinterest" id="userinterest_music" value="聽音樂">聽音樂
+        <input type="checkbox" name="userinterest" id="userinterest_water_sports" value="水上運動">水上運動
+        <input type="checkbox" name="userinterest" id="userinterest_travel" value="旅行">旅行
+        <input type="checkbox" id="select_all" onclick="toggleSelectAll(this)">全選<br> 
+        <script>
+          function toggleSelectAll(source) {
+            checkboxes = document.getElementsByName('userinterest');
+            for(var i=0, n=checkboxes.length;i<n;i++) {
+              checkboxes[i].checked = source.checked;
+            }
+          }
+        </script>
+        您對於使用臉書經營社群有何看法？<br>
+        <textarea name="userthought" cols="45" rows="4"></textarea><br>  
+      </fieldset><br>  
+      <input type="submit" value="傳送資料">   
+      <input type="reset" value="清除資料">        
+      <br>
+      <br>
+      <input type="button" value="回首頁" onclick="location.href='/homework3/'">
+      <input type="button" value="查看所有資料" onclick="location.href='/show_all/'">
+    </form>        
+    </body> 
+</html>
