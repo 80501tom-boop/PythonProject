@@ -1,0 +1,360 @@
+
+/* =========================
+   詳細頁基本容器
+========================= */
+
+.detail-container {
+    width: 90%;
+    max-width: 1100px;
+    margin: 35px auto 60px;
+}
+
+.back-link {
+    display: inline-block;
+    margin-bottom: 25px;
+    color: #2563eb;
+    font-size: 15px;
+}
+
+.back-link:hover {
+    text-decoration: underline;
+}
+
+
+/* =========================
+   股票標題
+========================= */
+
+.stock-header {
+    background: white;
+    padding: 30px;
+    border-radius: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+}
+
+.stock-code {
+    font-size: 18px;
+    color: #6b7280;
+    margin-bottom: 5px;
+}
+
+.stock-header h1 {
+    margin: 0 0 12px;
+    font-size: 34px;
+}
+
+.market-tag {
+    display: inline-block;
+    padding: 5px 12px;
+    background: #eef2ff;
+    color: #4338ca;
+    border-radius: 20px;
+    font-size: 13px;
+}
+
+.stock-status {
+    text-align: right;
+    color: #6b7280;
+    font-size: 14px;
+}
+
+.stock-status strong {
+    display: block;
+    margin-top: 7px;
+    color: #f59e0b;
+    font-size: 16px;
+}
+
+
+/* =========================
+   價格資訊
+========================= */
+
+.price-section {
+    display: grid;
+    grid-template-columns: 1.4fr repeat(3, 1fr);
+    gap: 18px;
+    margin-top: 20px;
+}
+
+.price-card {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+}
+
+.price-card span,
+.indicator-card span,
+.prediction-box span {
+    display: block;
+    color: #6b7280;
+    font-size: 14px;
+}
+
+.price-card strong {
+    display: block;
+    font-size: 26px;
+}
+
+.main-price strong {
+    font-size: 36px;
+}
+
+.price-card small {
+    display: block;
+    margin-top: 8px;
+    color: #9ca3af;
+}
+
+
+/* =========================
+   共用面板
+========================= */
+
+.panel {
+    background: white;
+    margin-top: 20px;
+    padding: 28px;
+    border-radius: 14px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.panel-header h2 {
+    margin: 0;
+    font-size: 22px;
+}
+
+.panel-header p {
+    margin: 7px 0 0;
+    color: #6b7280;
+    font-size: 14px;
+}
+
+
+/* =========================
+   圖表
+========================= */
+
+.period-buttons {
+    display: flex;
+    gap: 6px;
+}
+
+.period-buttons button {
+    padding: 7px 12px;
+    border: 1px solid #d1d5db;
+    background: white;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.period-buttons button:hover {
+    background: #f3f4f6;
+}
+
+.chart-area {
+    height: 300px;
+    margin-top: 25px;
+    border: 1px dashed #d1d5db;
+    border-radius: 10px;
+    background: #fafafa;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.chart-icon {
+    font-size: 45px;
+    margin-bottom: 10px;
+}
+
+.chart-area h3 {
+    margin: 5px 0;
+}
+
+.chart-area p {
+    color: #9ca3af;
+}
+
+
+/* =========================
+   技術指標
+========================= */
+
+.indicator-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px;
+    margin-top: 25px;
+}
+
+.indicator-card {
+    padding: 20px;
+    background: #f8fafc;
+    border-radius: 10px;
+}
+
+.indicator-card strong {
+    display: block;
+    font-size: 25px;
+    margin: 8px 0;
+}
+
+.indicator-card small {
+    color: #9ca3af;
+}
+
+
+/* =========================
+   AI 預測
+========================= */
+
+.ai-panel {
+    margin-top: 20px;
+    padding: 30px;
+    border-radius: 14px;
+    background: #111827;
+    color: white;
+}
+
+.ai-title {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.ai-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 10px;
+    background: #2563eb;
+    font-weight: bold;
+}
+
+.ai-title h2 {
+    margin: 0;
+}
+
+.ai-title p {
+    margin: 5px 0 0;
+    color: #9ca3af;
+}
+
+.ai-content {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    margin-top: 25px;
+}
+
+.prediction-box {
+    background: #1f2937;
+    padding: 20px;
+    border-radius: 10px;
+}
+
+.prediction-box strong {
+    display: block;
+    margin-top: 10px;
+    font-size: 25px;
+}
+
+.ai-note {
+    margin-top: 20px;
+    color: #9ca3af;
+    font-size: 13px;
+}
+
+
+/* =========================
+   找不到股票
+========================= */
+
+.not-found {
+    background: white;
+    padding: 70px 30px;
+    text-align: center;
+    border-radius: 14px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+}
+
+.not-found-icon {
+    width: 60px;
+    height: 60px;
+    margin: auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 50%;
+    background: #f3f4f6;
+    font-size: 28px;
+}
+
+.not-found p {
+    color: #6b7280;
+}
+
+.back-button {
+    display: inline-block;
+    margin-top: 20px;
+    padding: 12px 20px;
+    background: #2563eb;
+    color: white;
+    border-radius: 7px;
+}
+
+
+/* =========================
+   詳細頁 RWD
+========================= */
+
+@media (max-width: 800px) {
+    .price-section {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .indicator-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .ai-content {
+        grid-template-columns: 1fr;
+    }
+
+    .stock-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 20px;
+    }
+
+    .stock-status {
+        text-align: left;
+    }
+}
+
+@media (max-width: 500px) {
+    .price-section,
+    .indicator-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .panel-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+    }
+}

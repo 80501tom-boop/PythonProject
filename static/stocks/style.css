@@ -1,3 +1,4 @@
+
 /* =========================
    基本設定
 ========================= */
@@ -6,22 +7,16 @@
     box-sizing: border-box;
 }
 
-
 body {
-
     margin: 0;
-
-    font-family:
-        Arial,
-        "Microsoft JhengHei",
-        sans-serif;
-
+    font-family: Arial, "Microsoft JhengHei", sans-serif;
     background: #f5f7fa;
-
     color: #222;
-
 }
 
+a {
+    text-decoration: none;
+}
 
 
 /* =========================
@@ -29,1055 +24,197 @@ body {
 ========================= */
 
 .navbar {
-
     background: #111827;
-
     color: white;
-
     padding: 18px 8%;
-
     display: flex;
-
     justify-content: space-between;
-
     align-items: center;
-
 }
-
 
 .logo {
-
     font-size: 24px;
-
     font-weight: bold;
-
 }
-
 
 .nav-title {
-
     font-size: 14px;
-
     color: #d1d5db;
-
 }
-
 
 
 /* =========================
-   主容器
+   首頁容器
 ========================= */
 
 .container {
-
     width: 90%;
-
     max-width: 1100px;
-
     margin: 40px auto;
-
 }
 
 
-
 /* =========================
-   Hero
+   標題與搜尋
 ========================= */
 
 .hero {
-
     background: white;
-
     padding: 40px;
-
     border-radius: 12px;
-
     text-align: center;
-
-    box-shadow:
-        0 4px 15px rgba(0, 0, 0, 0.05);
-
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
 }
-
 
 .hero h1 {
-
     margin-top: 0;
-
     font-size: 32px;
-
 }
-
 
 .hero p {
-
     color: #6b7280;
-
 }
-
-
-
-/* =========================
-   搜尋框
-========================= */
 
 .search-form {
-
     display: flex;
-
     max-width: 650px;
-
     margin: 30px auto 0;
-
 }
-
 
 .search-form input {
-
     flex: 1;
-
     padding: 14px;
-
     font-size: 16px;
-
     border: 1px solid #d1d5db;
-
     border-radius: 8px 0 0 8px;
-
     outline: none;
-
 }
-
 
 .search-form input:focus {
-
     border-color: #2563eb;
-
 }
-
 
 .search-form button {
-
     padding: 14px 28px;
-
     border: none;
-
     background: #2563eb;
-
     color: white;
-
     font-size: 16px;
-
     border-radius: 0 8px 8px 0;
-
     cursor: pointer;
-
 }
-
 
 .search-form button:hover {
-
     background: #1d4ed8;
-
 }
-
 
 
 /* =========================
-   股票區域
+   股票清單
 ========================= */
 
 .stock-section {
-
     margin-top: 40px;
-
 }
-
 
 .stock-section h2 {
-
     margin-bottom: 20px;
-
 }
 
-
-
-/* =========================
-   股票卡片
-========================= */
-
-.stock-grid {
-
+.stock-grid,
+.features {
     display: grid;
-
-    grid-template-columns:
-        repeat(auto-fit, minmax(220px, 1fr));
-
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 20px;
-
 }
-
 
 .stock-card {
-
     background: white;
-
     padding: 25px;
-
     border-radius: 12px;
-
-    text-decoration: none;
-
     color: #222;
-
-    box-shadow:
-        0 4px 15px rgba(0, 0, 0, 0.05);
-
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
     transition: 0.2s;
-
 }
-
 
 .stock-card:hover {
-
     transform: translateY(-4px);
-
-    box-shadow:
-        0 8px 20px rgba(0, 0, 0, 0.1);
-
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
 }
-
 
 .stock-symbol {
-
     font-size: 28px;
-
     font-weight: bold;
-
 }
-
 
 .stock-name {
-
     font-size: 20px;
-
     margin-top: 8px;
-
 }
-
 
 .stock-market {
-
     margin-top: 10px;
-
     color: #6b7280;
-
     font-size: 14px;
-
 }
-
 
 .stock-link {
-
     margin-top: 20px;
-
     color: #2563eb;
-
     font-size: 14px;
-
 }
 
 
-
 /* =========================
-   查無資料
+   無搜尋結果與功能卡片
 ========================= */
+
+.no-result,
+.feature-card {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+}
 
 .no-result {
-
-    background: white;
-
-    padding: 40px;
-
     text-align: center;
-
-    border-radius: 12px;
-
+    padding: 40px;
 }
 
-
-.no-result h3 {
-
-    font-size: 24px;
-
-}
-
-
-.no-result p {
-
+.no-result p,
+.feature-card p {
     color: #6b7280;
-
 }
-
-
-
-/* =========================
-   功能區
-========================= */
-
-.features {
-
-    margin-top: 50px;
-
-    display: grid;
-
-    grid-template-columns:
-        repeat(auto-fit, minmax(220px, 1fr));
-
-    gap: 20px;
-
-}
-
-
-.feature-card {
-
-    background: white;
-
-    padding: 25px;
-
-    border-radius: 12px;
-
-}
-
 
 .feature-card h3 {
-
     margin-top: 0;
-
 }
 
-
-.feature-card p {
-
-    color: #6b7280;
-
+.features {
+    margin-top: 50px;
 }
-
 
 
 /* =========================
-   RWD
+   首頁 RWD
 ========================= */
 
 @media (max-width: 600px) {
-
     .navbar {
-
         flex-direction: column;
-
         gap: 8px;
-
     }
-
 
     .search-form {
-
         flex-direction: column;
-
     }
 
-
-    .search-form input {
-
+    .search-form input,
+    .search-form button {
         border-radius: 8px;
-
     }
-
 
     .search-form button {
-
         margin-top: 10px;
-
-        border-radius: 8px;
-
     }
-
 }
-
-```css
-/* =========================
-   股票詳細頁
-========================= */
-
-.detail-container {
-
-    width: 90%;
-
-    max-width: 1100px;
-
-    margin: 35px auto 60px;
-
-}
-
-
-.back-link {
-
-    display: inline-block;
-
-    margin-bottom: 25px;
-
-    color: #2563eb;
-
-    text-decoration: none;
-
-    font-size: 15px;
-
-}
-
-
-.back-link:hover {
-
-    text-decoration: underline;
-
-}
-
-
-
-/* =========================
-   股票標題
-========================= */
-
-.stock-header {
-
-    background: white;
-
-    padding: 30px;
-
-    border-radius: 14px;
-
-    display: flex;
-
-    justify-content: space-between;
-
-    align-items: center;
-
-    box-shadow:
-        0 4px 15px rgba(0, 0, 0, 0.05);
-
-}
-
-
-.stock-code {
-
-    font-size: 18px;
-
-    color: #6b7280;
-
-    margin-bottom: 5px;
-
-}
-
-
-.stock-header h1 {
-
-    margin: 0 0 12px;
-
-    font-size: 34px;
-
-}
-
-
-.market-tag {
-
-    display: inline-block;
-
-    padding: 5px 12px;
-
-    background: #eef2ff;
-
-    color: #4338ca;
-
-    border-radius: 20px;
-
-    font-size: 13px;
-
-}
-
-
-.stock-status {
-
-    text-align: right;
-
-    color: #6b7280;
-
-    font-size: 14px;
-
-}
-
-
-.stock-status strong {
-
-    display: block;
-
-    margin-top: 7px;
-
-    color: #f59e0b;
-
-    font-size: 16px;
-
-}
-
-
-
-/* =========================
-   價格資訊
-========================= */
-
-.price-section {
-
-    display: grid;
-
-    grid-template-columns:
-        1.4fr
-        repeat(3, 1fr);
-
-    gap: 18px;
-
-    margin-top: 20px;
-
-}
-
-
-.price-card {
-
-    background: white;
-
-    padding: 25px;
-
-    border-radius: 12px;
-
-    box-shadow:
-        0 4px 15px rgba(0, 0, 0, 0.05);
-
-}
-
-
-.price-card span {
-
-    display: block;
-
-    color: #6b7280;
-
-    font-size: 14px;
-
-    margin-bottom: 12px;
-
-}
-
-
-.price-card strong {
-
-    display: block;
-
-    font-size: 26px;
-
-}
-
-
-.price-card small {
-
-    display: block;
-
-    margin-top: 8px;
-
-    color: #9ca3af;
-
-}
-
-
-.main-price strong {
-
-    font-size: 36px;
-
-}
-
-
-
-/* =========================
-   通用區塊
-========================= */
-
-.panel {
-
-    background: white;
-
-    margin-top: 20px;
-
-    padding: 28px;
-
-    border-radius: 14px;
-
-    box-shadow:
-        0 4px 15px rgba(0, 0, 0, 0.05);
-
-}
-
-
-.panel-header {
-
-    display: flex;
-
-    justify-content: space-between;
-
-    align-items: center;
-
-}
-
-
-.panel-header h2 {
-
-    margin: 0;
-
-    font-size: 22px;
-
-}
-
-
-.panel-header p {
-
-    margin: 7px 0 0;
-
-    color: #6b7280;
-
-    font-size: 14px;
-
-}
-
-
-
-/* =========================
-   時間按鈕
-========================= */
-
-.period-buttons {
-
-    display: flex;
-
-    gap: 6px;
-
-}
-
-
-.period-buttons button {
-
-    border: 1px solid #d1d5db;
-
-    background: white;
-
-    padding: 7px 12px;
-
-    border-radius: 6px;
-
-    cursor: pointer;
-
-}
-
-
-.period-buttons button:hover {
-
-    background: #f3f4f6;
-
-}
-
-
-
-/* =========================
-   圖表
-========================= */
-
-.chart-area {
-
-    height: 300px;
-
-    margin-top: 25px;
-
-    border: 1px dashed #d1d5db;
-
-    border-radius: 10px;
-
-    display: flex;
-
-    flex-direction: column;
-
-    justify-content: center;
-
-    align-items: center;
-
-    background: #fafafa;
-
-}
-
-
-.chart-icon {
-
-    font-size: 45px;
-
-    margin-bottom: 10px;
-
-}
-
-
-.chart-area h3 {
-
-    margin: 5px 0;
-
-}
-
-
-.chart-area p {
-
-    color: #9ca3af;
-
-}
-
-
-
-/* =========================
-   技術指標
-========================= */
-
-.indicator-grid {
-
-    display: grid;
-
-    grid-template-columns:
-        repeat(4, 1fr);
-
-    gap: 15px;
-
-    margin-top: 25px;
-
-}
-
-
-.indicator-card {
-
-    padding: 20px;
-
-    background: #f8fafc;
-
-    border-radius: 10px;
-
-}
-
-
-.indicator-card span {
-
-    display: block;
-
-    color: #6b7280;
-
-    font-size: 14px;
-
-}
-
-
-.indicator-card strong {
-
-    display: block;
-
-    font-size: 25px;
-
-    margin: 8px 0;
-
-}
-
-
-.indicator-card small {
-
-    color: #9ca3af;
-
-}
-
-
-
-/* =========================
-   AI 預測
-========================= */
-
-.ai-panel {
-
-    margin-top: 20px;
-
-    padding: 30px;
-
-    border-radius: 14px;
-
-    background: #111827;
-
-    color: white;
-
-}
-
-
-.ai-title {
-
-    display: flex;
-
-    align-items: center;
-
-    gap: 15px;
-
-}
-
-
-.ai-icon {
-
-    width: 48px;
-
-    height: 48px;
-
-    display: flex;
-
-    justify-content: center;
-
-    align-items: center;
-
-    border-radius: 10px;
-
-    background: #2563eb;
-
-    font-weight: bold;
-
-}
-
-
-.ai-title h2 {
-
-    margin: 0;
-
-}
-
-
-.ai-title p {
-
-    margin: 5px 0 0;
-
-    color: #9ca3af;
-
-}
-
-
-.ai-content {
-
-    display: grid;
-
-    grid-template-columns:
-        repeat(3, 1fr);
-
-    gap: 15px;
-
-    margin-top: 25px;
-
-}
-
-
-.prediction-box {
-
-    background: #1f2937;
-
-    padding: 20px;
-
-    border-radius: 10px;
-
-}
-
-
-.prediction-box span {
-
-    display: block;
-
-    color: #9ca3af;
-
-    font-size: 14px;
-
-}
-
-
-.prediction-box strong {
-
-    display: block;
-
-    margin-top: 10px;
-
-    font-size: 25px;
-
-}
-
-
-.ai-note {
-
-    margin-top: 20px;
-
-    color: #9ca3af;
-
-    font-size: 13px;
-
-}
-
-
-
-/* =========================
-   找不到股票
-========================= */
-
-.not-found {
-
-    background: white;
-
-    padding: 70px 30px;
-
-    text-align: center;
-
-    border-radius: 14px;
-
-    box-shadow:
-        0 4px 15px rgba(0, 0, 0, 0.05);
-
-}
-
-
-.not-found-icon {
-
-    width: 60px;
-
-    height: 60px;
-
-    margin: auto;
-
-    display: flex;
-
-    justify-content: center;
-
-    align-items: center;
-
-    border-radius: 50%;
-
-    background: #f3f4f6;
-
-    font-size: 28px;
-
-}
-
-
-.not-found h1 {
-
-    margin-bottom: 10px;
-
-}
-
-
-.not-found p {
-
-    color: #6b7280;
-
-}
-
-
-.back-button {
-
-    display: inline-block;
-
-    margin-top: 20px;
-
-    padding: 12px 20px;
-
-    background: #2563eb;
-
-    color: white;
-
-    text-decoration: none;
-
-    border-radius: 7px;
-
-}
-
-
-
-/* =========================
-   RWD
-========================= */
-
-@media (max-width: 800px) {
-
-    .price-section {
-
-        grid-template-columns:
-            repeat(2, 1fr);
-
-    }
-
-
-    .indicator-grid {
-
-        grid-template-columns:
-            repeat(2, 1fr);
-
-    }
-
-
-    .ai-content {
-
-        grid-template-columns: 1fr;
-
-    }
-
-
-    .stock-header {
-
-        flex-direction: column;
-
-        align-items: flex-start;
-
-        gap: 20px;
-
-    }
-
-
-    .stock-status {
-
-        text-align: left;
-
-    }
-
-}
-
-
-@media (max-width: 500px) {
-
-    .price-section {
-
-        grid-template-columns: 1fr;
-
-    }
-
-
-    .indicator-grid {
-
-        grid-template-columns: 1fr;
-
-    }
-
-
-    .panel-header {
-
-        flex-direction: column;
-
-        align-items: flex-start;
-
-        gap: 15px;
-
-    }
-
-}
-```
