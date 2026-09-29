@@ -1,3 +1,5 @@
+import json
+
 from django.core.paginator import Paginator
 from django.shortcuts import render
 
@@ -40,20 +42,54 @@ def stock_detail(request, symbol):
             symbol=symbol
         )
 
-        prices = stock.prices.all()
+        # 完整歷史資料
+        all_prices = stock.prices.all().order_by("date")
 
     except Stock.DoesNotExist:
 
         stock = None
-        prices = Stock.objects.none()
+        all_prices = Stock.objects.none()
+
+    # =========================
+    # 最新價格
+    # =========================
+
+    latest_price = (
+        all_prices.last()
+        if stock
+        else None
+    )
+
+    # =========================
+    # 圖表資料
+    # =========================
+
+    chart_data = []
+
+    for price in all_prices:
+
+        chart_data.append({
+            "date": price.date.strftime("%Y-%m-%d"),
+            "close": float(price.close_price),
+        })
+
+    chart_data_json = json.dumps(
+        chart_data
+    )
 
     # =========================
     # 歷史價格分頁
     # 每頁 10 筆
     # =========================
 
+    prices_for_table = (
+        all_prices.order_by("-date")
+        if stock
+        else Stock.objects.none()
+    )
+
     paginator = Paginator(
-        prices,
+        prices_for_table,
         10
     )
 
@@ -61,22 +97,24 @@ def stock_detail(request, symbol):
         "page"
     )
 
-    prices_page = paginator.get_page(
+    prices = paginator.get_page(
         page_number
     )
 
-    # 最新價格
-    latest_price = prices.first()
-
     context = {
+
         "stock": stock,
 
-        # 原本的 prices 改成分頁後資料
-        "prices": prices_page,
+        # 歷史價格表格
+        "prices": prices,
 
+        # 最新價格
         "latest_price": latest_price,
 
-        # 額外提供分頁物件
+        # 圖表
+        "chart_data": chart_data_json,
+
+        # 分頁
         "paginator": paginator,
     }
 

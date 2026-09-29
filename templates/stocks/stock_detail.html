@@ -30,6 +30,7 @@
     <link rel="stylesheet"
           href="{% static 'stocks/stock_detail.css' %}">
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 
@@ -409,37 +410,25 @@
 
     <div class="chart-area">
 
+        {% if chart_data != "[]" %}
 
-        <div class="chart-icon">
-            📈
-        </div>
-
-
-        <h3>
-            股價圖表
-        </h3>
-
-
-        {% if prices %}
-
-            <p>
-
-                已取得
-                {{ prices.paginator.count }}
-                筆歷史價格資料
-
-            </p>
+            <canvas id="stockChart"></canvas>
 
         {% else %}
 
+            <div class="chart-icon">
+                📈
+            </div>
+
+            <h3>
+                尚無股價資料
+            </h3>
+
             <p>
-
-                尚無歷史價格資料
-
+                尚無歷史價格資料可以建立圖表
             </p>
 
         {% endif %}
-
 
     </div>
 
@@ -915,6 +904,95 @@
 
 </main>
 
+<script>
+
+    const chartData = {{ chart_data|safe }};
+
+    if (chartData.length > 0) {
+
+        const labels = chartData.map(
+            item => item.date
+        );
+
+        const prices = chartData.map(
+            item => item.close
+        );
+
+        const ctx = document
+            .getElementById("stockChart");
+
+        new Chart(ctx, {
+
+            type: "line",
+
+            data: {
+
+                labels: labels,
+
+                datasets: [
+
+                    {
+                        label: "收盤價",
+
+                        data: prices,
+
+                        tension: 0.25,
+
+                        pointRadius: 2,
+
+                        pointHoverRadius: 5,
+
+                        fill: false
+                    }
+
+                ]
+
+            },
+
+            options: {
+
+                responsive: true,
+
+                maintainAspectRatio: false,
+
+                interaction: {
+                    intersect: false,
+                    mode: "index"
+                },
+
+                scales: {
+
+                    x: {
+                        ticks: {
+                            maxTicksLimit: 10
+                        }
+                    },
+
+                    y: {
+                        beginAtZero: false
+                    }
+
+                },
+
+                plugins: {
+
+                    legend: {
+                        display: true
+                    },
+
+                    tooltip: {
+                        enabled: true
+                    }
+
+                }
+
+            }
+
+        });
+
+    }
+
+</script>
 
 </body>
 
