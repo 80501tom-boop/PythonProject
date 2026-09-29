@@ -1,22 +1,32 @@
 from django.db import models
 
-# Create your models here.
 
-class Student(models.Model):
-    name = models.CharField(max_length=100)
-    age = models.IntegerField()
+class Stock(models.Model):
 
-    def __str__(self):
-        return self.name
-class myapp_userprofile(models.Model):
-    id = models.AutoField(primary_key=True)
-    username = models.CharField(max_length=100)
-    usersex = models.CharField(max_length=10)
-    userschool = models.CharField(max_length=20)
-    userinterest = models.TextField()
-    userthought = models.TextField()
+    symbol = models.CharField(
+        max_length=10,
+        unique=True
+    )
+
+    name = models.CharField(
+        max_length=50
+    )
+
+    market = models.CharField(
+        max_length=20,
+        default="TWSE"
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True
+    )
+
     class Meta:
-        db_table = 'myapp_userprofile'  # 強制對應到 MySQL 內的 myapp_userprofile 資料表[cite: 1]
+        ordering = ["symbol"]
 
     def __str__(self):
-        return self.username
+        return f"{self.symbol} {self.name}"

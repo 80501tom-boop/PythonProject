@@ -81,7 +81,7 @@ DATABASES = {
 
         # mysql 
         'ENGINE': 'django.db.backends.mysql', 
-        'NAME': 'myapp_userprofile', 
+        'NAME': 'stock_ai', 
         'USER': 'root', 
         'PASSWORD': '12345', 
         'HOST': 'localhost', 
