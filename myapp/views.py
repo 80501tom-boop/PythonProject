@@ -38,12 +38,19 @@ def stock_detail(request, symbol):
             symbol=symbol
         )
 
+        prices = stock.prices.all()
+
     except Stock.DoesNotExist:
 
         stock = None
+        prices = []
+
+    latest_price = prices.first()
 
     context = {
-        "stock": stock
+        "stock": stock,
+        "prices": prices,
+        "latest_price": latest_price,
     }
 
     return render(

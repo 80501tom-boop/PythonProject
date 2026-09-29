@@ -19,11 +19,15 @@
         {% endif %}
     </title>
 
-    <!-- 共用樣式 -->
+
+    <!-- 共用 CSS -->
+
     <link rel="stylesheet"
           href="{% static 'stocks/style.css' %}">
 
-    <!-- 股票詳細頁樣式 -->
+
+    <!-- 股票詳細頁 CSS -->
+
     <link rel="stylesheet"
           href="{% static 'stocks/stock_detail.css' %}">
 
@@ -33,9 +37,9 @@
 <body>
 
 
-<!-- =========================
+<!-- ==================================================
      導覽列
-========================= -->
+================================================== -->
 
 <header class="navbar">
 
@@ -51,413 +55,797 @@
 
 
 
-<!-- =========================
+<!-- ==================================================
      主要內容
-========================= -->
+================================================== -->
 
 <main class="detail-container">
 
 
-    {% if stock %}
-
-
-        <!-- =========================
-             返回
-        ========================= -->
-
-        <a href="{% url 'index' %}"
-           class="back-link">
-
-            ← 返回股票搜尋
-
-        </a>
+{% if stock %}
 
 
 
-        <!-- =========================
-             股票標題
-        ========================= -->
+<!-- ==================================================
+     返回搜尋
+================================================== -->
 
-        <section class="stock-header">
+<a href="{% url 'index' %}"
+   class="back-link">
+
+    ← 返回股票搜尋
+
+</a>
+
+
+
+<!-- ==================================================
+     股票基本資料
+================================================== -->
+
+<section class="stock-header">
+
+
+    <div>
+
+        <div class="stock-code">
+
+            股票代號 {{ stock.symbol }}
+
+        </div>
+
+
+        <h1>
+
+            {{ stock.name }}
+
+        </h1>
+
+
+        <span class="market-tag">
+
+            {{ stock.market }}
+
+        </span>
+
+    </div>
+
+
+    <div class="stock-status">
+
+        資料來源
+
+        <strong>
+            MySQL
+        </strong>
+
+    </div>
+
+
+</section>
+
+
+
+<!-- ==================================================
+     最新價格
+================================================== -->
+
+<section class="price-section">
+
+
+    <!-- 最新收盤價 -->
+
+    <div class="price-card main-price">
+
+        <span>
+            最新價格
+        </span>
+
+
+        {% if latest_price %}
+
+            <strong>
+
+                {{ latest_price.close_price }}
+
+            </strong>
+
+
+            <small>
+
+                資料日期：
+                {{ latest_price.date }}
+
+            </small>
+
+        {% else %}
+
+            <strong>
+                --.--
+            </strong>
+
+            <small>
+                尚無價格資料
+            </small>
+
+        {% endif %}
+
+    </div>
+
+
+
+    <!-- 開盤 -->
+
+    <div class="price-card">
+
+        <span>
+            開盤價
+        </span>
+
+
+        {% if latest_price %}
+
+            <strong>
+
+                {{ latest_price.open_price }}
+
+            </strong>
+
+        {% else %}
+
+            <strong>
+                --.--
+            </strong>
+
+        {% endif %}
+
+    </div>
+
+
+
+    <!-- 最高 -->
+
+    <div class="price-card">
+
+        <span>
+            最高價
+        </span>
+
+
+        {% if latest_price %}
+
+            <strong>
+
+                {{ latest_price.high_price }}
+
+            </strong>
+
+        {% else %}
+
+            <strong>
+                --.--
+            </strong>
+
+        {% endif %}
+
+    </div>
+
+
+
+    <!-- 最低 -->
+
+    <div class="price-card">
+
+        <span>
+            最低價
+        </span>
+
+
+        {% if latest_price %}
+
+            <strong>
+
+                {{ latest_price.low_price }}
+
+            </strong>
+
+        {% else %}
+
+            <strong>
+                --.--
+            </strong>
+
+        {% endif %}
+
+    </div>
+
+
+</section>
+
+
+
+<!-- ==================================================
+     最新交易資料
+================================================== -->
+
+<section class="panel">
+
+
+    <div class="panel-header">
+
+        <div>
+
+            <h2>
+                最新交易資料
+            </h2>
+
+            <p>
+                Latest Trading Information
+            </p>
+
+        </div>
+
+    </div>
+
+
+
+    {% if latest_price %}
+
+
+        <div class="latest-data">
+
 
             <div>
 
-                <div class="stock-code">
-
-                    {{ stock.symbol }}
-
-                </div>
-
-                <h1>
-
-                    {{ stock.name }}
-
-                </h1>
-
-                <span class="market-tag">
-
-                    {{ stock.market }}
-
+                <span>
+                    日期
                 </span>
 
-            </div>
-
-
-            <div class="stock-status">
-
-                市場狀態
-
                 <strong>
-                    模擬資料
+                    {{ latest_price.date }}
                 </strong>
 
             </div>
 
-        </section>
 
-
-
-        <!-- =========================
-             即時價格
-        ========================= -->
-
-        <section class="price-section">
-
-
-            <div class="price-card main-price">
+            <div>
 
                 <span>
-                    最新價格
+                    收盤價
                 </span>
 
                 <strong>
-                    --.--
-                </strong>
-
-                <small>
-                    尚未連接即時股票資料
-                </small>
-
-            </div>
-
-
-            <div class="price-card">
-
-                <span>
-                    今日漲跌
-                </span>
-
-                <strong>
-                    --.--
+                    {{ latest_price.close_price }}
                 </strong>
 
             </div>
 
 
-            <div class="price-card">
+            <div>
 
                 <span>
                     成交量
                 </span>
 
                 <strong>
-                    --
+                    {{ latest_price.volume }}
                 </strong>
 
             </div>
 
 
-            <div class="price-card">
-
-                <span>
-                    更新時間
-                </span>
-
-                <strong>
-                    --
-                </strong>
-
-            </div>
-
-
-        </section>
-
-
-
-        <!-- =========================
-             股價圖
-        ========================= -->
-
-        <section class="panel">
-
-
-            <div class="panel-header">
-
-                <div>
-
-                    <h2>
-                        股價走勢
-                    </h2>
-
-                    <p>
-                        歷史價格與趨勢分析
-                    </p>
-
-                </div>
-
-
-                <div class="period-buttons">
-
-                    <button>1D</button>
-                    <button>1W</button>
-                    <button>1M</button>
-                    <button>3M</button>
-                    <button>1Y</button>
-
-                </div>
-
-            </div>
-
-
-
-            <div class="chart-area">
-
-                <div class="chart-icon">
-                    📈
-                </div>
-
-                <h3>
-                    股價圖表
-                </h3>
-
-                <p>
-                    後續將加入歷史股價資料與 K 線圖
-                </p>
-
-            </div>
-
-
-        </section>
-
-
-
-        <!-- =========================
-             技術指標
-        ========================= -->
-
-        <section class="panel">
-
-            <div class="panel-header">
-
-                <div>
-
-                    <h2>
-                        技術指標
-                    </h2>
-
-                    <p>
-                        股票技術分析
-                    </p>
-
-                </div>
-
-            </div>
-
-
-            <div class="indicator-grid">
-
-
-                <div class="indicator-card">
-
-                    <span>
-                        MA5
-                    </span>
-
-                    <strong>
-                        --
-                    </strong>
-
-                    <small>
-                        5 日移動平均
-                    </small>
-
-                </div>
-
-
-                <div class="indicator-card">
-
-                    <span>
-                        MA20
-                    </span>
-
-                    <strong>
-                        --
-                    </strong>
-
-                    <small>
-                        20 日移動平均
-                    </small>
-
-                </div>
-
-
-                <div class="indicator-card">
-
-                    <span>
-                        MA60
-                    </span>
-
-                    <strong>
-                        --
-                    </strong>
-
-                    <small>
-                        60 日移動平均
-                    </small>
-
-                </div>
-
-
-                <div class="indicator-card">
-
-                    <span>
-                        RSI
-                    </span>
-
-                    <strong>
-                        --
-                    </strong>
-
-                    <small>
-                        相對強弱指標
-                    </small>
-
-                </div>
-
-
-            </div>
-
-        </section>
-
-
-
-        <!-- =========================
-             AI 預測
-        ========================= -->
-
-        <section class="ai-panel">
-
-
-            <div class="ai-title">
-
-                <div class="ai-icon">
-                    AI
-                </div>
-
-                <div>
-
-                    <h2>
-                        AI 股票預測
-                    </h2>
-
-                    <p>
-                        Machine Learning Prediction
-                    </p>
-
-                </div>
-
-            </div>
-
-
-
-            <div class="ai-content">
-
-
-                <div class="prediction-box">
-
-                    <span>
-                        預測明日價格
-                    </span>
-
-                    <strong>
-                        --.--
-                    </strong>
-
-                </div>
-
-
-                <div class="prediction-box">
-
-                    <span>
-                        預測方向
-                    </span>
-
-                    <strong>
-                        --
-                    </strong>
-
-                </div>
-
-
-                <div class="prediction-box">
-
-                    <span>
-                        模型
-                    </span>
-
-                    <strong>
-                        尚未建立
-                    </strong>
-
-                </div>
-
-
-            </div>
-
-
-            <div class="ai-note">
-
-                ※ 目前為 V1.5 介面，AI 預測功能將於後續版本加入。
-
-            </div>
-
-
-        </section>
-
+        </div>
 
 
     {% else %}
 
 
-        <!-- =========================
-             找不到股票
-        ========================= -->
+        <div class="no-price">
 
-        <section class="not-found">
+            尚無股票價格資料
 
-            <div class="not-found-icon">
-                ?
-            </div>
-
-            <h1>
-                找不到股票
-            </h1>
-
-            <p>
-                找不到指定的股票資料。
-            </p>
-
-            <a href="{% url 'index' %}"
-               class="back-button">
-
-                返回股票搜尋
-
-            </a>
-
-        </section>
+        </div>
 
 
     {% endif %}
+
+
+</section>
+
+
+
+<!-- ==================================================
+     股價走勢
+================================================== -->
+
+<section class="panel">
+
+
+    <div class="panel-header">
+
+
+        <div>
+
+            <h2>
+                股價走勢
+            </h2>
+
+            <p>
+                Historical Price Trend
+            </p>
+
+        </div>
+
+
+        <div class="period-buttons">
+
+            <button type="button">
+                1D
+            </button>
+
+            <button type="button">
+                1W
+            </button>
+
+            <button type="button">
+                1M
+            </button>
+
+            <button type="button">
+                3M
+            </button>
+
+            <button type="button">
+                1Y
+            </button>
+
+        </div>
+
+
+    </div>
+
+
+
+    <!-- ==================================================
+         圖表預留區
+    ================================================== -->
+
+    <div class="chart-area">
+
+
+        <div class="chart-icon">
+            📈
+        </div>
+
+
+        <h3>
+            股價圖表
+        </h3>
+
+
+        {% if prices %}
+
+            <p>
+                已取得 {{ prices|length }} 筆歷史價格資料
+            </p>
+
+        {% else %}
+
+            <p>
+                尚無歷史價格資料
+            </p>
+
+        {% endif %}
+
+
+    </div>
+
+
+</section>
+
+
+
+<!-- ==================================================
+     歷史價格
+================================================== -->
+
+<section class="panel">
+
+
+    <div class="panel-header">
+
+
+        <div>
+
+            <h2>
+                歷史價格
+            </h2>
+
+            <p>
+                Historical Stock Prices
+            </p>
+
+        </div>
+
+
+    </div>
+
+
+
+    {% if prices %}
+
+
+        <div class="table-wrapper">
+
+
+            <table class="price-table">
+
+
+                <thead>
+
+                    <tr>
+
+                        <th>
+                            日期
+                        </th>
+
+                        <th>
+                            開盤
+                        </th>
+
+                        <th>
+                            最高
+                        </th>
+
+                        <th>
+                            最低
+                        </th>
+
+                        <th>
+                            收盤
+                        </th>
+
+                        <th>
+                            成交量
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+
+
+                <tbody>
+
+
+                    {% for price in prices %}
+
+
+                        <tr>
+
+
+                            <td>
+
+                                {{ price.date }}
+
+                            </td>
+
+
+                            <td>
+
+                                {{ price.open_price }}
+
+                            </td>
+
+
+                            <td>
+
+                                {{ price.high_price }}
+
+                            </td>
+
+
+                            <td>
+
+                                {{ price.low_price }}
+
+                            </td>
+
+
+                            <td>
+
+                                {{ price.close_price }}
+
+                            </td>
+
+
+                            <td>
+
+                                {{ price.volume }}
+
+                            </td>
+
+
+                        </tr>
+
+
+                    {% endfor %}
+
+
+                </tbody>
+
+
+            </table>
+
+
+        </div>
+
+
+    {% else %}
+
+
+        <div class="no-price">
+
+            尚無歷史價格資料
+
+        </div>
+
+
+    {% endif %}
+
+
+</section>
+
+
+
+<!-- ==================================================
+     技術指標
+================================================== -->
+
+<section class="panel">
+
+
+    <div class="panel-header">
+
+
+        <div>
+
+            <h2>
+                技術指標
+            </h2>
+
+            <p>
+                Technical Indicators
+            </p>
+
+        </div>
+
+
+    </div>
+
+
+
+    <div class="indicator-grid">
+
+
+        <div class="indicator-card">
+
+            <span>
+                MA5
+            </span>
+
+            <strong>
+                --
+            </strong>
+
+            <small>
+                5 日移動平均
+            </small>
+
+        </div>
+
+
+
+        <div class="indicator-card">
+
+            <span>
+                MA20
+            </span>
+
+            <strong>
+                --
+            </strong>
+
+            <small>
+                20 日移動平均
+            </small>
+
+        </div>
+
+
+
+        <div class="indicator-card">
+
+            <span>
+                MA60
+            </span>
+
+            <strong>
+                --
+            </strong>
+
+            <small>
+                60 日移動平均
+            </small>
+
+        </div>
+
+
+
+        <div class="indicator-card">
+
+            <span>
+                RSI
+            </span>
+
+            <strong>
+                --
+            </strong>
+
+            <small>
+                相對強弱指標
+            </small>
+
+        </div>
+
+
+    </div>
+
+
+</section>
+
+
+
+<!-- ==================================================
+     AI 股票預測
+================================================== -->
+
+<section class="ai-panel">
+
+
+    <div class="ai-title">
+
+
+        <div class="ai-icon">
+
+            AI
+
+        </div>
+
+
+        <div>
+
+            <h2>
+                AI 股票預測
+            </h2>
+
+            <p>
+                Machine Learning Prediction
+            </p>
+
+        </div>
+
+
+    </div>
+
+
+
+    <div class="ai-content">
+
+
+        <div class="prediction-box">
+
+            <span>
+                預測價格
+            </span>
+
+            <strong>
+                --.--
+            </strong>
+
+        </div>
+
+
+
+        <div class="prediction-box">
+
+            <span>
+                預測方向
+            </span>
+
+            <strong>
+                --
+            </strong>
+
+        </div>
+
+
+
+        <div class="prediction-box">
+
+            <span>
+                預測模型
+            </span>
+
+            <strong>
+                尚未建立
+            </strong>
+
+        </div>
+
+
+    </div>
+
+
+
+    <div class="ai-note">
+
+        ※ AI 預測功能將於後續版本加入。
+        目前僅顯示股票歷史資料。
+
+    </div>
+
+
+</section>
+
+
+
+{% else %}
+
+
+
+<!-- ==================================================
+     找不到股票
+================================================== -->
+
+<section class="not-found">
+
+
+    <div class="not-found-icon">
+
+        ?
+
+    </div>
+
+
+    <h1>
+
+        找不到股票
+
+    </h1>
+
+
+    <p>
+
+        找不到指定的股票資料，
+        請返回搜尋頁重新查詢。
+
+    </p>
+
+
+    <a href="{% url 'index' %}"
+       class="back-button">
+
+        返回股票搜尋
+
+    </a>
+
+
+</section>
+
+
+
+{% endif %}
 
 
 </main>
