@@ -1,4 +1,3 @@
-```html
 {% load static %}
 
 <!DOCTYPE html>
@@ -85,7 +84,6 @@
 
 <section class="stock-header">
 
-
     <div>
 
         <div class="stock-code">
@@ -120,7 +118,6 @@
         </strong>
 
     </div>
-
 
 </section>
 
@@ -426,13 +423,19 @@
         {% if prices %}
 
             <p>
-                已取得 {{ prices|length }} 筆歷史價格資料
+
+                已取得
+                {{ prices.paginator.count }}
+                筆歷史價格資料
+
             </p>
 
         {% else %}
 
             <p>
+
                 尚無歷史價格資料
+
             </p>
 
         {% endif %}
@@ -474,6 +477,10 @@
 
     {% if prices %}
 
+
+        <!-- =========================
+             歷史價格表格
+        ========================== -->
 
         <div class="table-wrapper">
 
@@ -525,44 +532,32 @@
 
 
                             <td>
-
                                 {{ price.date }}
-
                             </td>
 
 
                             <td>
-
                                 {{ price.open_price }}
-
                             </td>
 
 
                             <td>
-
                                 {{ price.high_price }}
-
                             </td>
 
 
                             <td>
-
                                 {{ price.low_price }}
-
                             </td>
 
 
                             <td>
-
                                 {{ price.close_price }}
-
                             </td>
 
 
                             <td>
-
                                 {{ price.volume }}
-
                             </td>
 
 
@@ -579,6 +574,75 @@
 
 
         </div>
+
+
+
+        <!-- =========================
+             分頁
+        ========================== -->
+
+        <div class="pagination">
+
+
+            {% if prices.has_previous %}
+
+
+                <a href="?page=1"
+                   class="page-button">
+
+                    第一頁
+
+                </a>
+
+
+                <a href="?page={{ prices.previous_page_number }}"
+                   class="page-button">
+
+                    ‹ 上一頁
+
+                </a>
+
+
+            {% endif %}
+
+
+
+            <span class="page-info">
+
+                第
+                {{ prices.number }}
+                /
+                {{ prices.paginator.num_pages }}
+                頁
+
+            </span>
+
+
+
+            {% if prices.has_next %}
+
+
+                <a href="?page={{ prices.next_page_number }}"
+                   class="page-button">
+
+                    下一頁 ›
+
+                </a>
+
+
+                <a href="?page={{ prices.paginator.num_pages }}"
+                   class="page-button">
+
+                    最後一頁
+
+                </a>
+
+
+            {% endif %}
+
+
+        </div>
+
 
 
     {% else %}
@@ -848,10 +912,10 @@
 {% endif %}
 
 
+
 </main>
 
 
 </body>
 
 </html>
-```
