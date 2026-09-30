@@ -114,6 +114,30 @@ def stock_detail(request, symbol):
             .rolling(window=60)
             .mean()
         )
+        
+        # ==================================================
+        # RSI 14
+        # ==================================================
+
+        delta = df["close"].diff()
+
+        gain = delta.clip(lower=0)
+
+        loss = -delta.clip(upper=0)
+
+        avg_gain = gain.rolling(
+            window=14
+        ).mean()
+
+        avg_loss = loss.rolling(
+            window=14
+        ).mean()
+
+        rs = avg_gain / avg_loss
+
+        df["RSI"] = 100 - (
+            100 / (1 + rs)
+        )
 
 
         # ==================================================
@@ -158,7 +182,15 @@ def stock_detail(request, symbol):
                     )
                     if pd.notna(row["MA60"])
                     else None
+                ),
+                "rsi": (
+                round(
+                    float(row["RSI"]),
+                    2
                 )
+                if pd.notna(row["RSI"])
+                else None
+),
 
             })
 
@@ -204,7 +236,8 @@ def stock_detail(request, symbol):
     ma5_value = None
     ma20_value = None
     ma60_value = None
-
+    rsi_value = None
+    
     if all_prices:
 
         if len(all_prices) >= 5:
@@ -244,6 +277,20 @@ def stock_detail(request, symbol):
                 ) / 60,
                 2
             )
+        # =========================
+        # 最新 RSI
+        # =========================
+
+        if len(df) >= 15:
+
+            latest_rsi = df["RSI"].iloc[-1]
+
+            if pd.notna(latest_rsi):
+
+                rsi_value = round(
+                    float(latest_rsi),
+                    2
+                )
     # ==================================================
     # 傳給 HTML
     # ==================================================
@@ -259,13 +306,15 @@ def stock_detail(request, symbol):
         "chart_data": chart_data_json,
 
         "paginator": paginator,
-        
-        # 技術指標
+
         "ma5": ma5_value,
-        
+
         "ma20": ma20_value,
-        
+
         "ma60": ma60_value,
+
+        "rsi": rsi_value,
+
     }
 
 

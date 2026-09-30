@@ -759,11 +759,17 @@
             </span>
 
             <strong>
-                --
+
+                {% if rsi %}
+                    {{ rsi }}
+                {% else %}
+                    --
+                {% endif %}
+
             </strong>
 
             <small>
-                相對強弱指標
+                14 日相對強弱指標
             </small>
 
         </div>
