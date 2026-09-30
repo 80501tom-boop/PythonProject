@@ -565,3 +565,34 @@
     width: 100% !important;
     height: 100% !important;
 }
+
+.period-buttons {
+    display: flex;
+    gap: 6px;
+}
+
+.period-buttons button {
+    padding: 6px 12px;
+
+    border: 1px solid #ddd;
+
+    background: #fff;
+
+    border-radius: 6px;
+
+    cursor: pointer;
+
+    font-size: 13px;
+}
+
+.period-buttons button:hover {
+    background: #f3f4f6;
+}
+
+.period-buttons button.active {
+    background: #111827;
+
+    color: #fff;
+
+    border-color: #111827;
+}

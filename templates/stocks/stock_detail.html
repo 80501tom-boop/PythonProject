@@ -377,23 +377,23 @@
 
         <div class="period-buttons">
 
-            <button type="button">
+            <button type="button" data-period="1D">
                 1D
             </button>
 
-            <button type="button">
+            <button type="button" data-period="1W">
                 1W
             </button>
 
-            <button type="button">
+            <button type="button" data-period="1M" class="active">
                 1M
             </button>
 
-            <button type="button">
+            <button type="button" data-period="3M">
                 3M
             </button>
 
-            <button type="button">
+            <button type="button" data-period="1Y">
                 1Y
             </button>
 
@@ -657,9 +657,7 @@
 
 <section class="panel">
 
-
     <div class="panel-header">
-
 
         <div>
 
@@ -673,13 +671,11 @@
 
         </div>
 
-
     </div>
-
-
 
     <div class="indicator-grid">
 
+        <!-- MA5 -->
 
         <div class="indicator-card">
 
@@ -688,7 +684,13 @@
             </span>
 
             <strong>
-                --
+
+                {% if ma5 %}
+                    {{ ma5 }}
+                {% else %}
+                    --
+                {% endif %}
+
             </strong>
 
             <small>
@@ -698,6 +700,7 @@
         </div>
 
 
+        <!-- MA20 -->
 
         <div class="indicator-card">
 
@@ -706,7 +709,13 @@
             </span>
 
             <strong>
-                --
+
+                {% if ma20 %}
+                    {{ ma20 }}
+                {% else %}
+                    --
+                {% endif %}
+
             </strong>
 
             <small>
@@ -716,6 +725,7 @@
         </div>
 
 
+        <!-- MA60 -->
 
         <div class="indicator-card">
 
@@ -724,7 +734,13 @@
             </span>
 
             <strong>
-                --
+
+                {% if ma60 %}
+                    {{ ma60 }}
+                {% else %}
+                    --
+                {% endif %}
+
             </strong>
 
             <small>
@@ -734,6 +750,7 @@
         </div>
 
 
+        <!-- RSI -->
 
         <div class="indicator-card">
 
@@ -751,9 +768,7 @@
 
         </div>
 
-
     </div>
-
 
 </section>
 
@@ -906,91 +921,322 @@
 
 <script>
 
+document.addEventListener("DOMContentLoaded", function () {
+
     const chartData = {{ chart_data|safe }};
 
-    if (chartData.length > 0) {
+    let stockChart = null;
 
-        const labels = chartData.map(
+
+    // ==================================================
+    // 取得指定期間
+    // ==================================================
+
+    function getPeriodData(period) {
+
+        let days = chartData.length;
+
+        switch (period) {
+
+            case "1D":
+                days = 1;
+                break;
+
+            case "1W":
+                days = 5;
+                break;
+
+            case "1M":
+                days = 22;
+                break;
+
+            case "3M":
+                days = 66;
+                break;
+
+            case "1Y":
+                days = 250;
+                break;
+        }
+
+        return chartData.slice(-days);
+    }
+
+
+    // ==================================================
+    // 建立圖表
+    // ==================================================
+
+    function createChart(period) {
+
+        const data =
+            getPeriodData(period);
+
+
+        const labels = data.map(
             item => item.date
         );
 
-        const prices = chartData.map(
+
+        const closePrices = data.map(
             item => item.close
         );
 
-        const ctx = document
-            .getElementById("stockChart");
 
-        new Chart(ctx, {
+        const ma5 = data.map(
+            item => item.ma5
+        );
 
-            type: "line",
 
-            data: {
+        const ma20 = data.map(
+            item => item.ma20
+        );
 
-                labels: labels,
 
-                datasets: [
+        const ma60 = data.map(
+            item => item.ma60
+        );
 
-                    {
-                        label: "收盤價",
 
-                        data: prices,
+        const canvas =
+            document.getElementById(
+                "stockChart"
+            );
 
-                        tension: 0.25,
 
-                        pointRadius: 2,
+        if (!canvas) {
+            return;
+        }
 
-                        pointHoverRadius: 5,
 
-                        fill: false
-                    }
+        // 如果已經存在圖表
+        // 先刪除
 
-                ]
+        if (stockChart) {
 
-            },
+            stockChart.destroy();
 
-            options: {
+        }
 
-                responsive: true,
 
-                maintainAspectRatio: false,
+        stockChart = new Chart(
+            canvas,
+            {
 
-                interaction: {
-                    intersect: false,
-                    mode: "index"
-                },
+                type: "line",
 
-                scales: {
 
-                    x: {
-                        ticks: {
-                            maxTicksLimit: 10
+                data: {
+
+                    labels: labels,
+
+
+                    datasets: [
+
+                        // =========================
+                        // 收盤價
+                        // =========================
+
+                        {
+
+                            label: "收盤價",
+
+                            data: closePrices,
+
+                            tension: 0.2,
+
+                            pointRadius: 2,
+
+                            pointHoverRadius: 5,
+
+                            fill: false
+
+                        },
+
+
+                        // =========================
+                        // MA5
+                        // =========================
+
+                        {
+
+                            label: "MA5",
+
+                            data: ma5,
+
+                            tension: 0.2,
+
+                            pointRadius: 0,
+
+                            fill: false
+
+                        },
+
+
+                        // =========================
+                        // MA20
+                        // =========================
+
+                        {
+
+                            label: "MA20",
+
+                            data: ma20,
+
+                            tension: 0.2,
+
+                            pointRadius: 0,
+
+                            fill: false
+
+                        },
+
+
+                        // =========================
+                        // MA60
+                        // =========================
+
+                        {
+
+                            label: "MA60",
+
+                            data: ma60,
+
+                            tension: 0.2,
+
+                            pointRadius: 0,
+
+                            fill: false
+
                         }
-                    },
 
-                    y: {
-                        beginAtZero: false
-                    }
+                    ]
 
                 },
 
-                plugins: {
 
-                    legend: {
-                        display: true
+                options: {
+
+                    responsive: true,
+
+                    maintainAspectRatio: false,
+
+
+                    interaction: {
+
+                        intersect: false,
+
+                        mode: "index"
+
                     },
 
-                    tooltip: {
-                        enabled: true
+
+                    scales: {
+
+                        x: {
+
+                            ticks: {
+
+                                maxTicksLimit: 10
+
+                            }
+
+                        },
+
+
+                        y: {
+
+                            beginAtZero: false
+
+                        }
+
+                    },
+
+
+                    plugins: {
+
+                        legend: {
+
+                            display: true
+
+                        },
+
+
+                        tooltip: {
+
+                            enabled: true
+
+                        }
+
                     }
 
                 }
 
             }
-
-        });
+        );
 
     }
+
+
+    // ==================================================
+    // 預設顯示 1M
+    // ==================================================
+
+    if (chartData.length > 0) {
+
+        createChart("1M");
+
+    }
+
+
+    // ==================================================
+    // 時間範圍按鈕
+    // ==================================================
+
+    const buttons =
+        document.querySelectorAll(
+            ".period-buttons button"
+        );
+
+
+    buttons.forEach(
+        function (button) {
+
+            button.addEventListener(
+                "click",
+                function () {
+
+                    const period =
+                        button.dataset.period;
+
+
+                    buttons.forEach(
+                        function (btn) {
+
+                            btn.classList.remove(
+                                "active"
+                            );
+
+                        }
+                    );
+
+
+                    button.classList.add(
+                        "active"
+                    );
+
+
+                    createChart(
+                        period
+                    );
+
+                }
+            );
+
+        }
+    );
+
+});
 
 </script>
 
