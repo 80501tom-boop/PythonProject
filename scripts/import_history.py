@@ -4,6 +4,7 @@ import django
 import requests
 import pandas as pd
 import time
+
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
@@ -32,31 +33,10 @@ from myapp.models import Stock, StockPrice
 # TWSE API
 # =====================================
 
-API_URL = "https://www.twse.com.tw/exchangeReport/STOCK_DAY"
-
-
-# =====================================
-# 股票
-# =====================================
-
-STOCK_CODES = [
-    "2330",
-    "2454",
-    "2317",
-    "0050",
-]
-
-
-# =====================================
-# 股票名稱
-# =====================================
-
-STOCK_NAMES = {
-    "2330": "台積電",
-    "2454": "聯發科",
-    "2317": "鴻海",
-    "0050": "元大台灣50",
-}
+API_URL = (
+    "https://www.twse.com.tw/"
+    "exchangeReport/STOCK_DAY"
+)
 
 
 # =====================================
@@ -84,13 +64,16 @@ def get_month_data(stock_code, date):
     data = response.json()
 
     if data.get("stat") != "OK":
+
         print(
             f"{stock_code} {date_str}: "
             f"{data.get('stat')}"
         )
+
         return None
 
     fields = data["fields"]
+
     records = data["data"]
 
     df = pd.DataFrame(
@@ -114,55 +97,75 @@ def clean_number(value):
 
     value = value.replace(",", "")
 
-    if value in ["", "--", "nan"]:
+    if value in [
+        "",
+        "--",
+        "nan"
+    ]:
         return None
 
     try:
+
         return float(value)
 
     except ValueError:
+
         return None
 
 
 # =====================================
-# 匯入單一股票
+# 匯入單一股票近一年資料
 # =====================================
 
 def import_stock(stock_code):
 
-    name = STOCK_NAMES.get(
-        stock_code,
+    stock_code = str(
         stock_code
-    )
+    ).strip()
 
     print()
     print("=" * 60)
-    print(f"開始匯入：{stock_code} {name}")
-    print("=" * 60)
 
-    # -----------------------------
-    # 建立 Stock
-    # -----------------------------
-
-    stock, created = Stock.objects.get_or_create(
-        symbol=stock_code,
-        defaults={
-            "name": name,
-            "market": "TWSE",
-        }
+    print(
+        f"開始匯入：{stock_code}"
     )
 
-    if created:
-        print("建立 Stock")
+    print("=" * 60)
 
-    # -----------------------------
+
+    # =================================
+    # 取得股票
+    # =================================
+
+    stock = Stock.objects.filter(
+        symbol=stock_code
+    ).first()
+
+
+    if stock is None:
+
+        print(
+            f"找不到 Stock：{stock_code}"
+        )
+
+        return False
+
+
+    print(
+        f"股票：{stock.symbol} "
+        f"{stock.name}"
+    )
+
+
+    # =================================
     # 過去 12 個月
-    # -----------------------------
+    # =================================
 
     today = datetime.today()
 
     start_date = (
-        today - relativedelta(months=11)
+        today
+        - relativedelta(months=11)
     ).replace(
         day=1
     )
@@ -171,11 +174,18 @@ def import_stock(stock_code):
 
     total = 0
 
+
+    # =================================
+    # 逐月取得資料
+    # =================================
+
     while current_date <= today:
 
         print(
-            f"取得 {current_date.strftime('%Y-%m')}..."
+            f"取得 "
+            f"{current_date.strftime('%Y-%m')}..."
         )
+
 
         try:
 
@@ -190,11 +200,16 @@ def import_stock(stock_code):
                 f"取得失敗：{e}"
             )
 
-            current_date += relativedelta(
-                months=1
+            current_date += (
+                relativedelta(months=1)
             )
 
             continue
+
+
+        # =================================
+        # 寫入資料庫
+        # =================================
 
         if df is not None:
 
@@ -202,15 +217,23 @@ def import_stock(stock_code):
 
                 try:
 
-                    # 民國日期，例如 115/09/29
+                    # -------------------------
+                    # 日期
+                    # -------------------------
+
                     date_text = str(
                         row["日期"]
                     )
 
                     parts = date_text.split("/")
 
-                    year = int(parts[0]) + 1911
+                    year = (
+                        int(parts[0])
+                        + 1911
+                    )
+
                     month = int(parts[1])
+
                     day = int(parts[2])
 
                     trade_date = datetime(
@@ -218,6 +241,11 @@ def import_stock(stock_code):
                         month,
                         day
                     ).date()
+
+
+                    # -------------------------
+                    # OHLC
+                    # -------------------------
 
                     open_price = clean_number(
                         row["開盤價"]
@@ -235,10 +263,22 @@ def import_stock(stock_code):
                         row["收盤價"]
                     )
 
+
+                    # -------------------------
+                    # 成交量
+                    # -------------------------
+
                     volume = int(
-                        str(row["成交股數"])
+                        str(
+                            row["成交股數"]
+                        )
                         .replace(",", "")
                     )
+
+
+                    # -------------------------
+                    # 避免無效資料
+                    # -------------------------
 
                     if None in [
                         open_price,
@@ -246,7 +286,13 @@ def import_stock(stock_code):
                         low_price,
                         close_price
                     ]:
+
                         continue
+
+
+                    # -------------------------
+                    # 寫入 / 更新
+                    # -------------------------
 
                     StockPrice.objects.update_or_create(
 
@@ -256,19 +302,26 @@ def import_stock(stock_code):
 
                         defaults={
 
-                            "open_price": open_price,
+                            "open_price":
+                                open_price,
 
-                            "high_price": high_price,
+                            "high_price":
+                                high_price,
 
-                            "low_price": low_price,
+                            "low_price":
+                                low_price,
 
-                            "close_price": close_price,
+                            "close_price":
+                                close_price,
 
-                            "volume": volume,
+                            "volume":
+                                volume,
                         }
                     )
 
+
                     total += 1
+
 
                 except Exception as e:
 
@@ -276,35 +329,28 @@ def import_stock(stock_code):
                         f"資料處理錯誤：{e}"
                     )
 
+
+        # =================================
         # 避免請求太密集
+        # =================================
+
         time.sleep(0.5)
 
-        current_date += relativedelta(
-            months=1
+
+        current_date += (
+            relativedelta(months=1)
         )
 
+
+    # =================================
+    # 完成
+    # =================================
+
     print()
+
     print(
-        f"{stock_code} 完成，共處理 {total} 筆"
+        f"{stock_code} 完成，"
+        f"共處理 {total} 筆"
     )
 
-
-# =====================================
-# 主程式
-# =====================================
-
-if __name__ == "__main__":
-
-    print()
-    print("=" * 60)
-    print("       STOCK AI - 歷史股價匯入")
-    print("=" * 60)
-
-    for code in STOCK_CODES:
-
-        import_stock(code)
-
-    print()
-    print("=" * 60)
-    print("          所有歷史資料匯入完成")
-    print("=" * 60)
+    return True

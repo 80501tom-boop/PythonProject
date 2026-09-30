@@ -1,11 +1,12 @@
 import json
-
 from django.core.paginator import Paginator
-from django.shortcuts import render
+from django.shortcuts import render,redirect
 
 from .models import Stock
 
 import pandas as pd
+import requests
+from scripts.import_history import import_stock
 
 def index(request):
 
@@ -34,6 +35,148 @@ def index(request):
         context
     )
 
+def add_stock(request):
+
+    if request.method != "POST":
+        return redirect("index")
+
+    symbol = request.POST.get(
+        "symbol",
+        ""
+    ).strip()
+
+    if not symbol:
+        return redirect("index")
+
+
+    # =================================
+    # TWSE 最新股票資料
+    # =================================
+
+    url = (
+        "https://openapi.twse.com.tw/"
+        "v1/exchangeReport/STOCK_DAY_ALL"
+    )
+
+
+    try:
+
+        response = requests.get(
+            url,
+            timeout=10
+        )
+
+        response.raise_for_status()
+
+        data = response.json()
+
+    except Exception as e:
+
+        print(
+            "TWSE API 錯誤：",
+            e
+        )
+
+        return redirect("index")
+
+
+    # =================================
+    # 找股票
+    # =================================
+
+    stock_data = None
+
+    for item in data:
+
+        if item.get("Code") == symbol:
+
+            stock_data = item
+
+            break
+
+
+    if not stock_data:
+
+        print(
+            f"找不到股票：{symbol}"
+        )
+
+        return redirect("index")
+
+
+    # =================================
+    # 建立 Stock
+    # =================================
+
+    stock, created = (
+        Stock.objects.get_or_create(
+
+            symbol=symbol,
+
+            defaults={
+                "name": stock_data.get(
+                    "Name",
+                    ""
+                ),
+                "market": "TWSE",
+            }
+        )
+    )
+
+
+    # =================================
+    # 更新名稱
+    # =================================
+
+    if not created:
+
+        stock.name = stock_data.get(
+            "Name",
+            stock.name
+        )
+
+        stock.save()
+
+
+    # =================================
+    # 抓近一年歷史資料
+    # =================================
+
+    print()
+    print(
+        f"開始抓取 {symbol} "
+        f"近一年歷史資料..."
+    )
+
+
+    try:
+
+        success = import_stock(
+            symbol
+        )
+
+        if success:
+
+            print(
+                f"{symbol} 歷史資料完成"
+            )
+
+    except Exception as e:
+
+        print(
+            "歷史資料匯入錯誤：",
+            e
+        )
+
+
+    # =================================
+    # 前往股票詳細頁
+    # =================================
+
+    return redirect(
+        "stock_detail",
+        symbol=symbol
+    )
 
 def stock_detail(request, symbol):
 

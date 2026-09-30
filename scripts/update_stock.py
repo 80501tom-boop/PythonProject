@@ -134,8 +134,17 @@ def update_stock(df, code):
 
     try:
 
-        date = pd.to_datetime(
-            row["Date"]
+        # TWSE 日期為民國年，例如 1150929 → 2026-09-29
+        twse_date = str(row["Date"]).strip()
+
+        year = int(twse_date[:3]) + 1911
+        month = int(twse_date[3:5])
+        day = int(twse_date[5:7])
+
+        date = pd.Timestamp(
+            year=year,
+            month=month,
+            day=day
         ).date()
 
         open_price = float(

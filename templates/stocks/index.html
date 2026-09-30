@@ -81,6 +81,30 @@
             </button>
 
         </form>
+        <!-- =========================
+            新增股票
+        ========================= -->
+
+        <form method="POST"
+            action="{% url 'add_stock' %}"
+            class="search-form">
+
+            {% csrf_token %}
+
+            <input
+                type="text"
+                name="symbol"
+                placeholder="新增股票，例如：2330"
+                maxlength="10"
+                autocomplete="off"
+                required
+            >
+
+            <button type="submit">
+                新增股票
+            </button>
+
+        </form>
 
 
     </section>
