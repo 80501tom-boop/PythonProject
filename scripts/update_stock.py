@@ -4,7 +4,8 @@ import django
 import requests
 import pandas as pd
 
-
+from myapp.models import Stock
+from scripts.import_history import update_stock
 # =====================================
 # Django 設定
 # =====================================
@@ -232,7 +233,27 @@ def update_stock(df, code):
     )
 
 
-# =====================================
+
+
+# def update_all_stocks():
+
+#     stocks = Stock.objects.all()
+
+#     for stock in stocks:
+
+#         try:
+#             print(f"更新 {stock.symbol} ...")
+
+#             update_stock(stock.symbol)
+
+#             print(f"{stock.symbol} 更新完成")
+
+#         except Exception as e:
+
+#             print(
+#                 f"{stock.symbol} 更新失敗：{e}"
+#             )
+# # =====================================
 # 主程式
 # =====================================
 
@@ -266,3 +287,4 @@ if __name__ == "__main__":
     print("=" * 60)
     print("             更新完成")
     print("=" * 60)
+    

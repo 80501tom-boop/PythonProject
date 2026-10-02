@@ -23,4 +23,14 @@ urlpatterns = [
         name="stock_detail"
     ),
 
+    path(
+        "market-ranking/",
+        views.market_ranking,
+        name="market_ranking"
+    ),
+    path(
+        "market-backtest/",
+        views.market_backtest,
+        name="market_backtest"
+    ),
 ]

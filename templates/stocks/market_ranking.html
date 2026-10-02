@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>AI 全市場排名</title>
+
+    <style>
+
+        body {
+            margin: 0;
+            padding: 40px;
+            font-family:
+                Arial,
+                "Microsoft JhengHei",
+                sans-serif;
+            background: #f5f7fa;
+            color: #222;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: auto;
+        }
+
+        .header {
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: #666;
+        }
+
+        .card {
+            background: white;
+            border-radius: 14px;
+            padding: 24px;
+            box-shadow:
+                0 4px 15px
+                rgba(0, 0, 0, 0.08);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: #f1f3f5;
+            padding: 14px;
+            text-align: center;
+        }
+
+        td {
+            padding: 16px 14px;
+            text-align: center;
+            border-bottom: 1px solid #eee;
+        }
+
+        tr:hover {
+            background: #fafafa;
+        }
+
+        .rank {
+            font-weight: bold;
+        }
+
+        .return {
+            font-weight: bold;
+        }
+
+        .positive {
+            color: #d63031;
+        }
+
+        .negative {
+            color: #0984e3;
+        }
+
+        .empty {
+            text-align: center;
+            padding: 50px;
+            color: #777;
+        }
+
+        .back {
+            display: inline-block;
+            margin-bottom: 20px;
+            text-decoration: none;
+            color: #555;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+    <a href="/" class="back">
+        ← 返回首頁
+    </a>
+
+    <div class="header">
+
+        <h1>
+            AI 全市場股票排名
+        </h1>
+
+        {% if prediction_date %}
+
+        <p>
+            預測基準日：
+            {{ prediction_date }}
+        </p>
+
+        {% endif %}
+
+        <p>
+            LightGBM 預測未來
+            20 個交易日報酬率
+        </p>
+
+    </div>
+
+
+    <div class="card">
+
+        {% if ranking %}
+
+        <table>
+
+            <thead>
+
+                <tr>
+
+                    <th>排名</th>
+
+                    <th>股票代號</th>
+
+                    <th>收盤價</th>
+
+                    <th>預測20日報酬</th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody>
+
+            {% for stock in ranking %}
+
+                <tr>
+
+                    <td class="rank">
+                        {{ stock.rank }}
+                    </td>
+
+                    <td>
+                        <strong>
+                            {{ stock.symbol }}
+                        </strong>
+                    </td>
+
+                    <td>
+                        {{ stock.close|floatformat:2 }}
+                    </td>
+
+                    <td>
+
+                        {% if stock.predicted_return_20 >= 0 %}
+
+                        <span class="return positive">
+
+                            +{{ stock.predicted_return_20|floatformat:2 }}%
+
+                        </span>
+
+                        {% else %}
+
+                        <span class="return negative">
+
+                            {{ stock.predicted_return_20|floatformat:2 }}%
+
+                        </span>
+
+                        {% endif %}
+
+                    </td>
+
+                </tr>
+
+            {% endfor %}
+
+            </tbody>
+
+        </table>
+
+        {% else %}
+
+        <div class="empty">
+
+            尚未產生 AI 排名資料。
+
+            <br><br>
+
+            請先執行：
+
+            <br><br>
+
+            <code>
+                python myapp/ml/train_market_model.py
+            </code>
+
+        </div>
+
+        {% endif %}
+
+    </div>
+
+</div>
+
+</body>
+
+</html>
