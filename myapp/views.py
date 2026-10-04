@@ -1,23 +1,29 @@
 import json
-from django.core.paginator import Paginator
-from django.shortcuts import render,redirect
+import os
 
-from .models import Stock
-
+import numpy as np
 import pandas as pd
 import requests
+
+from datetime import datetime
+
+from django.conf import settings
+from django.core.paginator import Paginator
+from django.shortcuts import render, redirect
+
+from .models import Stock, StockPrice
+
 from scripts.import_history import (
     import_stock,
+    update_stock,
     update_all_stocks
 )
 
-import os
-from django.conf import settings
 
-import numpy as np
+# ============================================================
+# 首頁
+# ============================================================
 
-# from datetime import date
-from datetime import datetime
 def index(request):
 
     # =====================================
@@ -26,19 +32,25 @@ def index(request):
 
     today = datetime.today().date()
 
-    if request.session.get("stock_data_update_date") != str(today):
+    if request.session.get(
+        "stock_data_update_date"
+    ) != str(today):
 
         try:
 
             print()
             print("=" * 60)
-            print(f"網站啟動：開始更新股票資料 {today}")
+            print(
+                f"網站啟動：開始更新股票資料 {today}"
+            )
             print("=" * 60)
 
             update_all_stocks()
 
             # 更新成功後才記錄日期
-            request.session["stock_data_update_date"] = str(today)
+            request.session[
+                "stock_data_update_date"
+            ] = str(today)
 
             print("=" * 60)
             print("股票資料更新完成")
@@ -51,17 +63,24 @@ def index(request):
             )
 
     # =====================================
-    # 以下接你原本 index() 的程式
+    # 股票搜尋
     # =====================================
 
-    query = request.GET.get("q", "").strip()
+    query = request.GET.get(
+        "q",
+        ""
+    ).strip()
 
     if query:
 
-        stocks = Stock.objects.filter(
-            symbol__icontains=query
-        ) | Stock.objects.filter(
-            name__icontains=query
+        stocks = (
+            Stock.objects.filter(
+                symbol__icontains=query
+            )
+            |
+            Stock.objects.filter(
+                name__icontains=query
+            )
         )
 
     else:
@@ -79,6 +98,11 @@ def index(request):
         context
     )
 
+
+# ============================================================
+# 新增股票
+# ============================================================
+
 def add_stock(request):
 
     if request.method != "POST":
@@ -92,16 +116,14 @@ def add_stock(request):
     if not symbol:
         return redirect("index")
 
-
-    # =================================
+    # =====================================
     # TWSE 最新股票資料
-    # =================================
+    # =====================================
 
     url = (
         "https://openapi.twse.com.tw/"
         "v1/exchangeReport/STOCK_DAY_ALL"
     )
-
 
     try:
 
@@ -123,10 +145,9 @@ def add_stock(request):
 
         return redirect("index")
 
-
-    # =================================
+    # =====================================
     # 找股票
-    # =================================
+    # =====================================
 
     stock_data = None
 
@@ -138,7 +159,6 @@ def add_stock(request):
 
             break
 
-
     if not stock_data:
 
         print(
@@ -147,10 +167,9 @@ def add_stock(request):
 
         return redirect("index")
 
-
-    # =================================
+    # =====================================
     # 建立 Stock
-    # =================================
+    # =====================================
 
     stock, created = (
         Stock.objects.get_or_create(
@@ -167,10 +186,9 @@ def add_stock(request):
         )
     )
 
-
-    # =================================
+    # =====================================
     # 更新名稱
-    # =================================
+    # =====================================
 
     if not created:
 
@@ -181,46 +199,103 @@ def add_stock(request):
 
         stock.save()
 
-
-    # =================================
-    # 抓近一年歷史資料
-    # =================================
+    # =====================================
+    # 歷史資料檢查
+    # =====================================
 
     print()
+    print("=" * 60)
     print(
-        f"開始抓取 {symbol} "
-        f"近一年歷史資料..."
+        f"股票 {symbol} 歷史資料檢查"
     )
-
+    print("=" * 60)
 
     try:
 
-        success = import_stock(
-            symbol
-        )
+        # =================================
+        # 檢查資料庫是否已有歷史資料
+        # =================================
 
-        if success:
+        has_history = StockPrice.objects.filter(
+            stock=stock
+        ).exists()
+
+        # =================================
+        # 情況 1：
+        # 完全沒有歷史資料
+        # =================================
+
+        if not has_history:
 
             print(
-                f"{symbol} 歷史資料完成"
+                f"{symbol} 尚無歷史資料"
+            )
+
+            print(
+                f"開始抓取 {symbol} 近一年歷史資料..."
+            )
+
+            success = import_stock(
+                symbol
+            )
+
+            if success:
+
+                print(
+                    f"{symbol} 近一年歷史資料完成"
+                )
+
+            else:
+
+                print(
+                    f"{symbol} 歷史資料抓取失敗"
+                )
+
+        # =================================
+        # 情況 2：
+        # 已經有歷史資料
+        # =================================
+
+        else:
+
+            print(
+                f"{symbol} 已有歷史資料"
+            )
+
+            print(
+                f"檢查是否需要更新..."
+            )
+
+            update_stock(
+                symbol
+            )
+
+            print(
+                f"{symbol} 資料檢查完成"
             )
 
     except Exception as e:
 
         print(
-            "歷史資料匯入錯誤：",
+            "歷史資料更新錯誤：",
             e
         )
 
+    print("=" * 60)
 
-    # =================================
+    # =====================================
     # 前往股票詳細頁
-    # =================================
+    # =====================================
 
     return redirect(
         "stock_detail",
         symbol=symbol
     )
+
+
+# ============================================================
+# 股票詳細頁
+# ============================================================
 
 def stock_detail(request, symbol):
 
@@ -241,7 +316,6 @@ def stock_detail(request, symbol):
         stock = None
         all_prices = []
 
-
     # ==================================================
     # 最新價格
     # ==================================================
@@ -252,13 +326,14 @@ def stock_detail(request, symbol):
         else None
     )
 
-
     # ==================================================
     # 建立 Pandas DataFrame
     # ==================================================
 
     chart_data = []
 
+    # 預防沒有資料時 df 未定義
+    df = pd.DataFrame()
 
     if all_prices:
 
@@ -276,9 +351,9 @@ def stock_detail(request, symbol):
 
             })
 
-
-        df = pd.DataFrame(data)
-
+        df = pd.DataFrame(
+            data
+        )
 
         # ==================================================
         # 移動平均
@@ -301,16 +376,20 @@ def stock_detail(request, symbol):
             .rolling(window=60)
             .mean()
         )
-        
+
         # ==================================================
         # RSI 14
         # ==================================================
 
         delta = df["close"].diff()
 
-        gain = delta.clip(lower=0)
+        gain = delta.clip(
+            lower=0
+        )
 
-        loss = -delta.clip(upper=0)
+        loss = -delta.clip(
+            upper=0
+        )
 
         avg_gain = gain.rolling(
             window=14
@@ -325,7 +404,6 @@ def stock_detail(request, symbol):
         df["RSI"] = 100 - (
             100 / (1 + rs)
         )
-
 
         # ==================================================
         # 轉換成 JavaScript 可以使用的資料
@@ -370,17 +448,17 @@ def stock_detail(request, symbol):
                     if pd.notna(row["MA60"])
                     else None
                 ),
+
                 "rsi": (
-                round(
-                    float(row["RSI"]),
-                    2
-                )
-                if pd.notna(row["RSI"])
-                else None
-),
+                    round(
+                        float(row["RSI"]),
+                        2
+                    )
+                    if pd.notna(row["RSI"])
+                    else None
+                ),
 
             })
-
 
     # ==================================================
     # JSON
@@ -389,7 +467,6 @@ def stock_detail(request, symbol):
     chart_data_json = json.dumps(
         chart_data
     )
-
 
     # ==================================================
     # 歷史價格分頁
@@ -404,80 +481,108 @@ def stock_detail(request, symbol):
         else []
     )
 
-
     paginator = Paginator(
         prices_for_table,
         10
     )
 
-
     page_number = request.GET.get(
         "page"
     )
-
 
     prices = paginator.get_page(
         page_number
     )
 
+    # ==================================================
+    # 技術指標
+    # ==================================================
+
     ma5_value = None
     ma20_value = None
     ma60_value = None
     rsi_value = None
-    
+
     if all_prices:
+
+        # =====================================
+        # MA5
+        # =====================================
 
         if len(all_prices) >= 5:
 
             ma5_value = round(
+
                 sum(
                     float(
                         p.close_price
                     )
                     for p in all_prices[-5:]
-                ) / 5,
+                )
+                / 5,
+
                 2
             )
 
+        # =====================================
+        # MA20
+        # =====================================
 
         if len(all_prices) >= 20:
 
             ma20_value = round(
+
                 sum(
                     float(
                         p.close_price
                     )
                     for p in all_prices[-20:]
-                ) / 20,
+                )
+                / 20,
+
                 2
             )
 
+        # =====================================
+        # MA60
+        # =====================================
 
         if len(all_prices) >= 60:
 
             ma60_value = round(
+
                 sum(
                     float(
                         p.close_price
                     )
                     for p in all_prices[-60:]
-                ) / 60,
+                )
+                / 60,
+
                 2
             )
-        # =========================
+
+        # =====================================
         # 最新 RSI
-        # =========================
+        # =====================================
 
         if len(df) >= 15:
 
-            latest_rsi = df["RSI"].iloc[-1]
+            latest_rsi = (
+                df["RSI"].iloc[-1]
+            )
 
-            if pd.notna(latest_rsi):
+            if pd.notna(
+                latest_rsi
+            ):
 
                 rsi_value = round(
-                    float(latest_rsi),
+                    float(
+                        latest_rsi
+                    ),
                     2
                 )
+
     # ==================================================
     # 傳給 HTML
     # ==================================================
@@ -504,12 +609,16 @@ def stock_detail(request, symbol):
 
     }
 
-
     return render(
         request,
         "stocks/stock_detail.html",
         context
     )
+
+
+# ============================================================
+# 市場排名
+# ============================================================
 
 def market_ranking(request):
 
@@ -552,9 +661,11 @@ def market_ranking(request):
                 errors="coerce"
             )
 
-            df["predicted_return_20"] = pd.to_numeric(
-                df["predicted_return_20"],
-                errors="coerce"
+            df["predicted_return_20"] = (
+                pd.to_numeric(
+                    df["predicted_return_20"],
+                    errors="coerce"
+                )
             )
 
             prediction_date = str(
@@ -573,7 +684,12 @@ def market_ranking(request):
             "prediction_date": prediction_date,
         }
     )
-    
+
+
+# ============================================================
+# 市場回測
+# ============================================================
+
 def market_backtest(request):
 
     csv_path = os.path.join(
@@ -607,7 +723,11 @@ def market_backtest(request):
             df["symbol"] = (
                 df["symbol"]
                 .astype(str)
-                .str.replace(".0", "", regex=False)
+                .str.replace(
+                    ".0",
+                    "",
+                    regex=False
+                )
                 .str.zfill(4)
             )
 
@@ -636,6 +756,17 @@ def market_backtest(request):
                     df[column] = pd.to_numeric(
                         df[column],
                         errors="coerce"
+                    )
+                    df = df.dropna(
+                        subset=[
+                            "predicted_avg",
+                            "actual_avg",
+                            "market_avg",
+                            "excess_return",
+                            "cumulative_strategy",
+                            "cumulative_market",
+                            "cumulative_excess",
+                        ]
                     )
 
             # ==================================================
@@ -676,10 +807,6 @@ def market_backtest(request):
                         ].mean(),
 
                     # 正報酬比例
-                    #
-                    # 例如：
-                    # 0.60 → 60%
-                    #
                     "positive_ratio":
                         (
                             df[
@@ -846,8 +973,31 @@ def market_backtest(request):
             "performance": performance,
         }
     )
-    
+
+
+# ============================================================
+# 市場策略
+# ============================================================
+
 def market_strategy(request):
+    """
+    V5.5 Top-N 策略績效頁面
+
+    功能：
+    1. 讀取 Top-N 策略回測結果
+    2. 顯示 Top-N 累積報酬
+    3. 顯示全市場累積報酬
+    4. 顯示超額報酬
+    5. 顯示每一期 Top-N 選股
+    6. 顯示股票代號與股票名稱
+    """
+
+    import os
+    import pandas as pd
+
+    # =====================================================
+    # CSV 路徑
+    # =====================================================
 
     strategy_path = os.path.join(
         settings.BASE_DIR,
@@ -865,238 +1015,197 @@ def market_strategy(request):
         "market_strategy_detail.csv"
     )
 
-    summary = {}
-    performance = []
-    strategy_dates = []
+    # =====================================================
+    # 檢查檔案
+    # =====================================================
 
-    # =====================================
-    # 讀取策略績效 CSV
-    # =====================================
-
-    if os.path.exists(strategy_path):
-
-        df = pd.read_csv(
-            strategy_path
+    if not os.path.exists(strategy_path):
+        return render(
+            request,
+            "stocks/market_strategy.html",
+            {
+                "error": "尚未產生市場策略回測資料。",
+                "summary": {},
+                "performance": [],
+                "strategy_dates": [],
+            }
         )
 
-        if not df.empty:
+    # =====================================================
+    # 讀取策略績效
+    # =====================================================
 
-            # -----------------------------
-            # 日期
-            # -----------------------------
+    df = pd.read_csv(strategy_path)
 
-            if "date" in df.columns:
-                df["date"] = pd.to_datetime(
-                    df["date"],
-                    errors="coerce"
-                )
+    if df.empty:
+        return render(
+            request,
+            "stocks/market_strategy.html",
+            {
+                "error": "市場策略回測資料為空。",
+                "summary": {},
+                "performance": [],
+                "strategy_dates": [],
+            }
+        )
 
-            # -----------------------------
-            # 數值欄位
-            # -----------------------------
+    # =====================================================
+    # 日期
+    # =====================================================
 
-            numeric_columns = [
-                "top_n",
-                "predicted_avg",
-                "actual_avg",
-                "market_avg",
-                "excess_return",
-                "cumulative_strategy",
-                "cumulative_market",
-            ]
+    df["date"] = pd.to_datetime(
+        df["date"],
+        errors="coerce"
+    )
 
-            for column in numeric_columns:
+    df = df.dropna(
+        subset=["date"]
+    )
 
-                if column in df.columns:
+    df = df.sort_values(
+        "date"
+    )
 
-                    df[column] = pd.to_numeric(
-                        df[column],
-                        errors="coerce"
-                    )
+    # =====================================================
+    # 數值欄位
+    # =====================================================
 
-            # -----------------------------
-            # 移除無效資料
-            # -----------------------------
+    numeric_columns = [
+        "actual_avg",
+        "market_avg",
+        "cumulative_strategy",
+        "cumulative_market",
+        "cumulative_excess",
+    ]
 
-            df = df.dropna(
-                subset=[
-                    "date",
-                    "actual_avg",
-                    "market_avg"
-                ]
+    for column in numeric_columns:
+        if column in df.columns:
+            df[column] = pd.to_numeric(
+                df[column],
+                errors="coerce"
             )
 
-            if not df.empty:
+    # =====================================================
+    # Top-N
+    # =====================================================
 
-                # =============================
-                # 排序
-                # =============================
+    if "top_n" in df.columns:
+        top_n = int(
+            pd.to_numeric(
+                df["top_n"],
+                errors="coerce"
+            ).dropna().iloc[0]
+        )
+    else:
+        top_n = 5
 
-                df = df.sort_values(
-                    "date"
-                ).reset_index(
-                    drop=True
-                )
+    # =====================================================
+    # Summary
+    #
+    # 注意：
+    # Template 直接使用這組欄位名稱
+    # =====================================================
 
-                # =============================
-                # 回測期間
-                # =============================
+    summary = {
+        "top_n": top_n,
 
-                start_date = df["date"].min()
-                end_date = df["date"].max()
+        "periods": len(df),
 
-                # =============================
-                # Summary
-                # =============================
+        "start_date": (
+            df["date"].min().strftime("%Y-%m-%d")
+            if not df.empty
+            else ""
+        ),
 
-                summary = {
+        "end_date": (
+            df["date"].max().strftime("%Y-%m-%d")
+            if not df.empty
+            else ""
+        ),
 
-                    "top_n":
-                        int(
-                            df["top_n"].iloc[0]
-                        )
-                        if "top_n" in df.columns
-                        else 5,
+        # Top-N 累積報酬
+        "strategy_cumulative": float(
+            df["cumulative_strategy"].iloc[-1]
+        ),
 
-                    "periods":
-                        len(df),
+        # 全市場累積報酬
+        "market_cumulative": float(
+            df["cumulative_market"].iloc[-1]
+        ),
 
-                    "start_date":
-                        start_date.strftime(
-                            "%Y-%m-%d"
-                        ),
+        # 超額報酬
+        "excess_cumulative": float(
+            df["cumulative_excess"].iloc[-1]
+        ),
 
-                    "end_date":
-                        end_date.strftime(
-                            "%Y-%m-%d"
-                        ),
+        "average_strategy": float(
+            df["actual_avg"].mean()
+        ),
 
-                    "cumulative_strategy":
-                        float(
-                            df[
-                                "cumulative_strategy"
-                            ].iloc[-1]
-                        )
-                        if "cumulative_strategy"
-                        in df.columns
-                        else 0,
+        "average_market": float(
+            df["market_avg"].mean()
+        ),
 
-                    "cumulative_market":
-                        float(
-                            df[
-                                "cumulative_market"
-                            ].iloc[-1]
-                        )
-                        if "cumulative_market"
-                        in df.columns
-                        else 0,
-                }
+        "positive_ratio": float(
+            (
+                df["actual_avg"] > 0
+            ).mean() * 100
+        ),
 
-                # =============================
-                # 超額報酬
-                # =============================
+        "outperform_ratio": float(
+            (
+                df["actual_avg"]
+                >
+                df["market_avg"]
+            ).mean() * 100
+        ),
+    }
 
-                summary["excess_return"] = (
-                    summary["cumulative_strategy"]
-                    -
-                    summary["cumulative_market"]
-                )
+    # =====================================================
+    # Performance
+    #
+    # 給前端圖表使用
+    # =====================================================
 
-                # =============================
-                # 策略平均報酬
-                # =============================
+    performance = []
 
-                summary["average_strategy"] = float(
-                    df["actual_avg"].mean()
-                )
+    for _, row in df.iterrows():
+        performance.append({
+            "date": row["date"].strftime("%Y-%m-%d"),
 
-                summary["average_market"] = float(
-                    df["market_avg"].mean()
-                )
+            "top_n": int(row["top_n"]),
 
-                # =============================
-                # 策略勝率
-                # =============================
+            "predicted_avg": float(row["predicted_avg"]),
+            "actual_avg": float(row["actual_avg"]),
+            "market_avg": float(row["market_avg"]),
+            "excess_return": float(row["excess_return"]),
 
-                summary["positive_ratio"] = (
-                    (
-                        df["actual_avg"] > 0
-                    ).mean()
-                    * 100
-                )
+            "cumulative_strategy": float(
+                row["cumulative_strategy"]
+            ),
 
-                # =============================
-                # 超越大盤比例
-                # =============================
+            "cumulative_market": float(
+                row["cumulative_market"]
+            ),
 
-                summary["outperform_ratio"] = (
-                    (
-                        df["actual_avg"]
-                        >
-                        df["market_avg"]
-                    ).mean()
-                    * 100
-                )
+            "cumulative_excess": float(
+                row["cumulative_excess"]
+            ),
+        })
 
-                # =============================
-                # 表格資料
-                # =============================
+    # =====================================================
+    # Top-N 每期選股
+    # =====================================================
 
-                display_df = df.copy()
-
-                display_df["date"] = (
-                    display_df["date"]
-                    .dt.strftime(
-                        "%Y-%m-%d"
-                    )
-                )
-
-                display_df = (
-                    display_df
-                    .replace(
-                        [np.inf, -np.inf],
-                        np.nan
-                    )
-                    .fillna(0)
-                )
-
-                performance = (
-                    display_df
-                    .to_dict("records")
-                )
-
-    # =====================================
-    # 讀取 Top-N 明細
-    # =====================================
+    strategy_dates = []
 
     if os.path.exists(detail_path):
 
         detail_df = pd.read_csv(
-            detail_path,
-            dtype={
-                "symbol": str
-            }
+            detail_path
         )
 
         if not detail_df.empty:
-
-            # -----------------------------
-            # 股票代號
-            # -----------------------------
-
-            if "symbol" in detail_df.columns:
-
-                detail_df["symbol"] = (
-                    detail_df["symbol"]
-                    .astype(str)
-                    .str.strip()
-                    .str.replace(
-                        ".0",
-                        "",
-                        regex=False
-                    )
-                    .str.zfill(4)
-                )
 
             # -----------------------------
             # 日期
@@ -1107,20 +1216,33 @@ def market_strategy(request):
                 errors="coerce"
             )
 
+            detail_df = detail_df.dropna(
+                subset=["date"]
+            )
+
             # -----------------------------
-            # 數值欄位
+            # 股票代號
             # -----------------------------
 
-            numeric_columns = [
-                "rank",
+            detail_df["symbol"] = (
+                detail_df["symbol"]
+                .astype(str)
+                .str.replace(
+                    ".0",
+                    "",
+                    regex=False
+                )
+                .str.zfill(4)
+            )
+
+            # -----------------------------
+            # 數值
+            # -----------------------------
+
+            for column in [
                 "predicted_return_20",
                 "actual_return_20",
-                "model_rank",
-                "close",
-            ]
-
-            for column in numeric_columns:
-
+            ]:
                 if column in detail_df.columns:
 
                     detail_df[column] = pd.to_numeric(
@@ -1128,77 +1250,110 @@ def market_strategy(request):
                         errors="coerce"
                     )
 
-            detail_df = detail_df.dropna(
-                subset=[
+            # =================================================
+            # 建立股票名稱對照
+            # =================================================
+
+            stock_map = {
+                str(stock.symbol).zfill(4): stock.name
+                for stock in Stock.objects.all()
+            }
+
+            # =================================================
+            # 如果 CSV 沒有 name
+            # 就從 Stock Model 補上
+            # =================================================
+
+            detail_df["name"] = (
+                detail_df["symbol"]
+                .map(stock_map)
+                .fillna("")
+            )
+
+            # =================================================
+            # 依日期處理
+            # =================================================
+
+            detail_df = detail_df.sort_values(
+                [
                     "date",
-                    "symbol"
+                    "predicted_return_20"
+                ],
+                ascending=[
+                    True,
+                    False
                 ]
             )
 
-            # =============================
-            # 依日期建立 Top 5
-            # =============================
+            for date, group in detail_df.groupby(
+                "date"
+            ):
 
-            if not detail_df.empty:
-
-                detail_df = (
-                    detail_df
-                    .sort_values(
-                        [
-                            "date",
-                            "rank"
-                        ]
-                    )
+                top_df = group.head(
+                    top_n
                 )
 
-                for date, group in detail_df.groupby(
-                    "date",
-                    sort=False
+                stocks = []
+
+                for rank, (_, row) in enumerate(
+                    top_df.iterrows(),
+                    start=1
                 ):
 
-                    group = group.copy()
+                    stocks.append({
+                        "rank": rank,
 
-                    group["date"] = (
-                        group["date"]
-                        .dt.strftime(
-                            "%Y-%m-%d"
-                        )
-                    )
+                        "symbol": str(
+                            row["symbol"]
+                        ).zfill(4),
 
-                    # NaN / inf 處理
-                    group = (
-                        group
-                        .replace(
-                            [
-                                np.inf,
-                                -np.inf
-                            ],
-                            np.nan
-                        )
-                        .fillna("")
-                    )
+                        "name": row["name"],
 
-                    strategy_dates.append({
-                        "date": group["date"].iloc[0],
-                        "stocks":
-                            group.to_dict(
-                                "records"
+                        "predicted_return_20": (
+                            float(
+                                row["predicted_return_20"]
                             )
+                            if pd.notna(
+                                row["predicted_return_20"]
+                            )
+                            else None
+                        ),
+
+                        "actual_return_20": (
+                            float(
+                                row["actual_return_20"]
+                            )
+                            if pd.notna(
+                                row["actual_return_20"]
+                            )
+                            else None
+                        ),
                     })
 
-                # 最新日期放前面
-                strategy_dates.reverse()
+                strategy_dates.append({
+                    "date": date.strftime(
+                        "%Y-%m-%d"
+                    ),
 
-    # =====================================
-    # Render
-    # =====================================
+                    "stocks": stocks,
+                })
+
+    # =====================================================
+    # Django Template
+    # =====================================================
+
+    context = {
+        "summary": summary,
+
+        "performance": performance,
+
+        "strategy_dates": strategy_dates,
+
+        "error": "",
+    }
 
     return render(
         request,
         "stocks/market_strategy.html",
-        {
-            "summary": summary,
-            "performance": performance,
-            "strategy_dates": strategy_dates,
-        }
+        context
     )
