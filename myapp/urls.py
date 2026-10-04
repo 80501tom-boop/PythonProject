@@ -33,4 +33,9 @@ urlpatterns = [
         views.market_backtest,
         name="market_backtest"
     ),
+    path(
+    "market-strategy/",
+    views.market_strategy,
+    name="market_strategy",
+    ),
 ]

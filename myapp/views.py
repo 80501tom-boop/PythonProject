@@ -846,3 +846,359 @@ def market_backtest(request):
             "performance": performance,
         }
     )
+    
+def market_strategy(request):
+
+    strategy_path = os.path.join(
+        settings.BASE_DIR,
+        "myapp",
+        "ml",
+        "output",
+        "market_strategy_backtest.csv"
+    )
+
+    detail_path = os.path.join(
+        settings.BASE_DIR,
+        "myapp",
+        "ml",
+        "output",
+        "market_strategy_detail.csv"
+    )
+
+    summary = {}
+    performance = []
+    strategy_dates = []
+
+    # =====================================
+    # 讀取策略績效 CSV
+    # =====================================
+
+    if os.path.exists(strategy_path):
+
+        df = pd.read_csv(
+            strategy_path
+        )
+
+        if not df.empty:
+
+            # -----------------------------
+            # 日期
+            # -----------------------------
+
+            if "date" in df.columns:
+                df["date"] = pd.to_datetime(
+                    df["date"],
+                    errors="coerce"
+                )
+
+            # -----------------------------
+            # 數值欄位
+            # -----------------------------
+
+            numeric_columns = [
+                "top_n",
+                "predicted_avg",
+                "actual_avg",
+                "market_avg",
+                "excess_return",
+                "cumulative_strategy",
+                "cumulative_market",
+            ]
+
+            for column in numeric_columns:
+
+                if column in df.columns:
+
+                    df[column] = pd.to_numeric(
+                        df[column],
+                        errors="coerce"
+                    )
+
+            # -----------------------------
+            # 移除無效資料
+            # -----------------------------
+
+            df = df.dropna(
+                subset=[
+                    "date",
+                    "actual_avg",
+                    "market_avg"
+                ]
+            )
+
+            if not df.empty:
+
+                # =============================
+                # 排序
+                # =============================
+
+                df = df.sort_values(
+                    "date"
+                ).reset_index(
+                    drop=True
+                )
+
+                # =============================
+                # 回測期間
+                # =============================
+
+                start_date = df["date"].min()
+                end_date = df["date"].max()
+
+                # =============================
+                # Summary
+                # =============================
+
+                summary = {
+
+                    "top_n":
+                        int(
+                            df["top_n"].iloc[0]
+                        )
+                        if "top_n" in df.columns
+                        else 5,
+
+                    "periods":
+                        len(df),
+
+                    "start_date":
+                        start_date.strftime(
+                            "%Y-%m-%d"
+                        ),
+
+                    "end_date":
+                        end_date.strftime(
+                            "%Y-%m-%d"
+                        ),
+
+                    "cumulative_strategy":
+                        float(
+                            df[
+                                "cumulative_strategy"
+                            ].iloc[-1]
+                        )
+                        if "cumulative_strategy"
+                        in df.columns
+                        else 0,
+
+                    "cumulative_market":
+                        float(
+                            df[
+                                "cumulative_market"
+                            ].iloc[-1]
+                        )
+                        if "cumulative_market"
+                        in df.columns
+                        else 0,
+                }
+
+                # =============================
+                # 超額報酬
+                # =============================
+
+                summary["excess_return"] = (
+                    summary["cumulative_strategy"]
+                    -
+                    summary["cumulative_market"]
+                )
+
+                # =============================
+                # 策略平均報酬
+                # =============================
+
+                summary["average_strategy"] = float(
+                    df["actual_avg"].mean()
+                )
+
+                summary["average_market"] = float(
+                    df["market_avg"].mean()
+                )
+
+                # =============================
+                # 策略勝率
+                # =============================
+
+                summary["positive_ratio"] = (
+                    (
+                        df["actual_avg"] > 0
+                    ).mean()
+                    * 100
+                )
+
+                # =============================
+                # 超越大盤比例
+                # =============================
+
+                summary["outperform_ratio"] = (
+                    (
+                        df["actual_avg"]
+                        >
+                        df["market_avg"]
+                    ).mean()
+                    * 100
+                )
+
+                # =============================
+                # 表格資料
+                # =============================
+
+                display_df = df.copy()
+
+                display_df["date"] = (
+                    display_df["date"]
+                    .dt.strftime(
+                        "%Y-%m-%d"
+                    )
+                )
+
+                display_df = (
+                    display_df
+                    .replace(
+                        [np.inf, -np.inf],
+                        np.nan
+                    )
+                    .fillna(0)
+                )
+
+                performance = (
+                    display_df
+                    .to_dict("records")
+                )
+
+    # =====================================
+    # 讀取 Top-N 明細
+    # =====================================
+
+    if os.path.exists(detail_path):
+
+        detail_df = pd.read_csv(
+            detail_path,
+            dtype={
+                "symbol": str
+            }
+        )
+
+        if not detail_df.empty:
+
+            # -----------------------------
+            # 股票代號
+            # -----------------------------
+
+            if "symbol" in detail_df.columns:
+
+                detail_df["symbol"] = (
+                    detail_df["symbol"]
+                    .astype(str)
+                    .str.strip()
+                    .str.replace(
+                        ".0",
+                        "",
+                        regex=False
+                    )
+                    .str.zfill(4)
+                )
+
+            # -----------------------------
+            # 日期
+            # -----------------------------
+
+            detail_df["date"] = pd.to_datetime(
+                detail_df["date"],
+                errors="coerce"
+            )
+
+            # -----------------------------
+            # 數值欄位
+            # -----------------------------
+
+            numeric_columns = [
+                "rank",
+                "predicted_return_20",
+                "actual_return_20",
+                "model_rank",
+                "close",
+            ]
+
+            for column in numeric_columns:
+
+                if column in detail_df.columns:
+
+                    detail_df[column] = pd.to_numeric(
+                        detail_df[column],
+                        errors="coerce"
+                    )
+
+            detail_df = detail_df.dropna(
+                subset=[
+                    "date",
+                    "symbol"
+                ]
+            )
+
+            # =============================
+            # 依日期建立 Top 5
+            # =============================
+
+            if not detail_df.empty:
+
+                detail_df = (
+                    detail_df
+                    .sort_values(
+                        [
+                            "date",
+                            "rank"
+                        ]
+                    )
+                )
+
+                for date, group in detail_df.groupby(
+                    "date",
+                    sort=False
+                ):
+
+                    group = group.copy()
+
+                    group["date"] = (
+                        group["date"]
+                        .dt.strftime(
+                            "%Y-%m-%d"
+                        )
+                    )
+
+                    # NaN / inf 處理
+                    group = (
+                        group
+                        .replace(
+                            [
+                                np.inf,
+                                -np.inf
+                            ],
+                            np.nan
+                        )
+                        .fillna("")
+                    )
+
+                    strategy_dates.append({
+                        "date": group["date"].iloc[0],
+                        "stocks":
+                            group.to_dict(
+                                "records"
+                            )
+                    })
+
+                # 最新日期放前面
+                strategy_dates.reverse()
+
+    # =====================================
+    # Render
+    # =====================================
+
+    return render(
+        request,
+        "stocks/market_strategy.html",
+        {
+            "summary": summary,
+            "performance": performance,
+            "strategy_dates": strategy_dates,
+        }
+    )
