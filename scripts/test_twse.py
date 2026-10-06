@@ -52,3 +52,4 @@ if stock.empty:
     print("找不到 2330")
 else:
     print(stock.to_string(index=False))
+#目前沒用到
