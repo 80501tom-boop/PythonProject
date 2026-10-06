@@ -5,559 +5,488 @@
 
     <meta charset="UTF-8">
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
 
-    <title>AI Top-5 策略回測</title>
-
+    <title>STOCK AI｜Top-N 選股策略</title>
 
     <style>
 
-        /* =====================================================
-           基本設定
-        ===================================================== */
-
         * {
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
         }
 
-
         body {
-
             font-family:
                 "Microsoft JhengHei",
                 "PingFang TC",
                 Arial,
                 sans-serif;
 
-            background: #f3f4f6;
+            background:
+                linear-gradient(
+                    135deg,
+                    #f4f7fb,
+                    #eef2f7
+                );
 
             color: #1f2937;
 
-            padding: 30px;
+            min-height: 100vh;
         }
 
-
         .container {
-
+            width: 92%;
             max-width: 1400px;
 
             margin: 0 auto;
+
+            padding: 35px 0 60px;
         }
 
-
-        /* =====================================================
+        /* ==============================
            Header
-        ===================================================== */
+        ============================== */
 
         .header {
-
             background: #ffffff;
 
-            border-radius: 14px;
+            border-radius: 18px;
 
-            padding: 25px 30px;
+            padding: 28px 32px;
 
             margin-bottom: 25px;
+
+            box-shadow:
+                0 8px 25px
+                rgba(0, 0, 0, 0.06);
 
             border: 1px solid #e5e7eb;
         }
 
+        .brand {
+            font-size: 14px;
 
-        .header h1 {
+            letter-spacing: 2px;
 
-            font-size: 28px;
+            color: #64748b;
 
             margin-bottom: 8px;
         }
 
+        h1 {
+            font-size: 30px;
 
-        .header p {
+            font-weight: 700;
 
+            color: #111827;
+
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
             color: #64748b;
 
             font-size: 15px;
+
+            line-height: 1.7;
         }
 
+        /* ==============================
+           Error
+        ============================== */
 
-        .back-link {
+        .error {
+            background: #fff1f2;
 
-            display: inline-block;
+            border: 1px solid #fecdd3;
 
-            margin-top: 15px;
+            color: #be123c;
 
-            color: #2563eb;
+            border-radius: 12px;
 
-            text-decoration: none;
+            padding: 15px 18px;
+
+            margin-bottom: 20px;
 
             font-size: 14px;
         }
 
-
-        .back-link:hover {
-
-            text-decoration: underline;
-        }
-
-
-        /* =====================================================
-           Summary
-        ===================================================== */
+        /* ==============================
+           Summary Cards
+        ============================== */
 
         .summary-grid {
+            display: grid;
 
+            grid-template-columns:
+                repeat(4, 1fr);
+
+            gap: 18px;
+
+            margin-bottom: 25px;
+        }
+
+        .card {
+            background: #ffffff;
+
+            border-radius: 16px;
+
+            padding: 22px;
+
+            border: 1px solid #e5e7eb;
+
+            box-shadow:
+                0 6px 20px
+                rgba(0, 0, 0, 0.05);
+        }
+
+        .card-label {
+            color: #64748b;
+
+            font-size: 14px;
+
+            margin-bottom: 12px;
+        }
+
+        .card-value {
+            font-size: 29px;
+
+            font-weight: 700;
+
+            color: #111827;
+        }
+
+        .card-desc {
+            margin-top: 8px;
+
+            color: #94a3b8;
+
+            font-size: 12px;
+        }
+
+        .positive {
+            color: #059669;
+        }
+
+        .negative {
+            color: #dc2626;
+        }
+
+        /* ==============================
+           Section
+        ============================== */
+
+        .section {
+            background: #ffffff;
+
+            border-radius: 18px;
+
+            padding: 28px;
+
+            margin-bottom: 25px;
+
+            border: 1px solid #e5e7eb;
+
+            box-shadow:
+                0 6px 20px
+                rgba(0, 0, 0, 0.05);
+        }
+
+        .section-title {
+            font-size: 21px;
+
+            font-weight: 700;
+
+            color: #111827;
+
+            margin-bottom: 6px;
+        }
+
+        .section-desc {
+            color: #64748b;
+
+            font-size: 13px;
+
+            margin-bottom: 20px;
+        }
+
+        /* ==============================
+           Chart
+        ============================== */
+
+        .chart-wrapper {
+            width: 100%;
+
+            height: 400px;
+
+            position: relative;
+        }
+
+        canvas {
+            width: 100% !important;
+
+            height: 100% !important;
+        }
+
+        /* ==============================
+           Table
+        ============================== */
+
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+
+            border-collapse: collapse;
+
+            font-size: 14px;
+        }
+
+        th {
+            background: #f8fafc;
+
+            color: #475569;
+
+            font-weight: 600;
+
+            padding: 13px 12px;
+
+            text-align: center;
+
+            border-bottom:
+                1px solid #e2e8f0;
+        }
+
+        td {
+            padding: 13px 12px;
+
+            text-align: center;
+
+            border-bottom:
+                1px solid #f1f5f9;
+
+            color: #334155;
+        }
+
+        tr:hover td {
+            background: #f8fafc;
+        }
+
+        .rank {
+            font-weight: 700;
+
+            color: #2563eb;
+        }
+
+        .symbol {
+            font-family:
+                Consolas,
+                monospace;
+
+            font-weight: 600;
+        }
+
+        /* ==============================
+           Top 5
+        ============================== */
+
+        .top5-grid {
             display: grid;
 
             grid-template-columns:
                 repeat(5, 1fr);
 
             gap: 15px;
-
-            margin-bottom: 25px;
         }
 
+        .stock-card {
+            border:
+                1px solid #e5e7eb;
 
-        .summary-card {
+            border-radius: 14px;
 
-            background: #ffffff;
+            padding: 18px;
 
-            border-radius: 12px;
-
-            padding: 20px;
-
-            border: 1px solid #e5e7eb;
+            background: #fafafa;
         }
 
-
-        .summary-title {
-
+        .stock-rank {
             font-size: 13px;
 
-            color: #64748b;
+            color: #2563eb;
+
+            font-weight: 700;
 
             margin-bottom: 8px;
         }
 
+        .stock-name {
+            font-size: 18px;
 
-        .summary-value {
+            font-weight: 700;
 
-            font-size: 25px;
+            color: #111827;
 
-            font-weight: bold;
+            margin-bottom: 4px;
         }
 
-
-        .summary-sub {
-
-            margin-top: 6px;
-
-            font-size: 12px;
-
-            color: #94a3b8;
-        }
-
-
-        /* =====================================================
-           Section
-        ===================================================== */
-
-        .section {
-
-            background: #ffffff;
-
-            border-radius: 14px;
-
-            padding: 25px;
-
-            margin-bottom: 25px;
-
-            border: 1px solid #e5e7eb;
-        }
-
-
-        .section-title {
-
-            font-size: 20px;
-
-            font-weight: bold;
-
-            margin-bottom: 20px;
-        }
-
-
-        .section-description {
-
+        .stock-symbol {
             color: #64748b;
 
-            font-size: 14px;
+            font-family:
+                Consolas,
+                monospace;
 
-            margin-top: -10px;
+            font-size: 13px;
 
-            margin-bottom: 20px;
-
-            line-height: 1.7;
+            margin-bottom: 16px;
         }
 
+        .stock-row {
+            display: flex;
 
-        /* =====================================================
-           Chart
-        ===================================================== */
+            justify-content: space-between;
 
-        .chart-container {
+            padding: 7px 0;
 
-            width: 100%;
+            border-bottom:
+                1px solid #e5e7eb;
 
-            height: 420px;
-
-            position: relative;
-
-            overflow-x: auto;
+            font-size: 13px;
         }
 
-
-        .chart-container canvas {
-
-            width: 100%;
-
-            height: 420px;
-
-            display: block;
-
-            max-width: 100%;
+        .stock-row:last-child {
+            border-bottom: none;
         }
 
+        .stock-label {
+            color: #64748b;
+        }
 
-        /* =====================================================
-           Strategy explanation
-        ===================================================== */
+        .stock-value {
+            font-weight: 700;
+        }
 
-        .strategy-flow {
+        /* ==============================
+           Methodology
+        ============================== */
 
+        .methodology {
             display: grid;
 
             grid-template-columns:
-                repeat(5, 1fr);
+                repeat(4, 1fr);
 
-            gap: 12px;
+            gap: 15px;
 
             margin-top: 20px;
         }
 
-
-        .flow-item {
-
-            border: 1px solid #e5e7eb;
-
-            border-radius: 10px;
-
-            padding: 16px;
-
-            text-align: center;
-
+        .method-step {
             background: #f8fafc;
+
+            border-radius: 12px;
+
+            padding: 17px;
+
+            border:
+                1px solid #e2e8f0;
         }
 
-
-        .flow-number {
-
+        .step-number {
             font-size: 12px;
 
             color: #2563eb;
 
-            margin-bottom: 8px;
+            font-weight: 700;
 
-            font-weight: bold;
+            margin-bottom: 7px;
         }
 
-
-        .flow-title {
-
-            font-weight: bold;
+        .step-title {
+            font-weight: 700;
 
             margin-bottom: 6px;
+
+            color: #1e293b;
         }
 
-
-        .flow-text {
-
-            font-size: 13px;
+        .step-text {
+            font-size: 12px;
 
             color: #64748b;
 
             line-height: 1.6;
         }
 
-
-        /* =====================================================
-           Top 5 table
-        ===================================================== */
-
-        .table-wrapper {
-
-            width: 100%;
-
-            overflow-x: auto;
-        }
-
-
-        table {
-
-            width: 100%;
-
-            border-collapse: collapse;
-
-            min-width: 700px;
-        }
-
-
-        th {
+        .note {
+            margin-top: 18px;
 
             background: #f8fafc;
 
-            color: #475569;
+            border-left:
+                4px solid #64748b;
 
-            font-size: 13px;
-
-            font-weight: bold;
-
-            padding: 12px;
-
-            border-bottom: 1px solid #e5e7eb;
-
-            text-align: center;
-        }
-
-
-        td {
-
-            padding: 12px;
-
-            border-bottom: 1px solid #f1f5f9;
-
-            text-align: center;
-
-            font-size: 14px;
-        }
-
-
-        tbody tr:hover {
-
-            background: #f8fafc;
-        }
-
-
-        .positive {
-
-            color: #16a34a;
-
-            font-weight: bold;
-        }
-
-
-        .negative {
-
-            color: #dc2626;
-
-            font-weight: bold;
-        }
-
-
-        .symbol {
-
-            font-weight: bold;
-
-            color: #2563eb;
-        }
-
-
-        /* =====================================================
-           Date groups
-        ===================================================== */
-
-        .date-group {
-
-            border: 1px solid #e5e7eb;
-
-            border-radius: 10px;
-
-            margin-bottom: 15px;
-
-            overflow: hidden;
-        }
-
-
-        .date-header {
-
-            background: #f8fafc;
-
-            padding: 14px 18px;
-
-            font-weight: bold;
-
-            border-bottom: 1px solid #e5e7eb;
-        }
-
-
-        .date-body {
-
-            padding: 0;
-        }
-
-
-        /* =====================================================
-           Pagination
-        ===================================================== */
-
-        .pagination {
-
-            display: flex;
-
-            justify-content: center;
-
-            align-items: center;
-
-            gap: 6px;
-
-            margin-top: 20px;
-
-            flex-wrap: wrap;
-        }
-
-
-        .pagination button {
-
-            border: 1px solid #d1d5db;
-
-            background: #ffffff;
-
-            border-radius: 6px;
-
-            padding: 7px 12px;
-
-            cursor: pointer;
-
-            font-size: 13px;
-        }
-
-
-        .pagination button:hover {
-
-            background: #f1f5f9;
-        }
-
-
-        .pagination button.active {
-
-            background: #2563eb;
-
-            color: #ffffff;
-
-            border-color: #2563eb;
-        }
-
-
-        .pagination button:disabled {
-
-            opacity: 0.45;
-
-            cursor: not-allowed;
-        }
-
-
-        .page-info {
-
-            text-align: center;
-
-            margin-top: 10px;
-
-            font-size: 13px;
+            padding: 14px 17px;
 
             color: #64748b;
+
+            font-size: 13px;
+
+            line-height: 1.7;
         }
 
-
-        /* =====================================================
-           Empty
-        ===================================================== */
-
-        .empty {
-
-            padding: 50px;
-
-            text-align: center;
-
-            color: #64748b;
-        }
-
-
-        /* =====================================================
+        /* ==============================
            Responsive
-        ===================================================== */
+        ============================== */
 
         @media (max-width: 1100px) {
 
             .summary-grid {
-
-                grid-template-columns:
-                    repeat(3, 1fr);
-            }
-
-
-            .strategy-flow {
-
-                grid-template-columns:
-                    repeat(3, 1fr);
-            }
-        }
-
-
-        @media (max-width: 700px) {
-
-            body {
-
-                padding: 15px;
-            }
-
-
-            .summary-grid {
-
                 grid-template-columns:
                     repeat(2, 1fr);
             }
 
-
-            .strategy-flow {
-
+            .top5-grid {
                 grid-template-columns:
-                    1fr;
+                    repeat(2, 1fr);
             }
 
+            .methodology {
+                grid-template-columns:
+                    repeat(2, 1fr);
+            }
+        }
 
-            .header h1 {
+        @media (max-width: 650px) {
 
-                font-size: 23px;
+            .container {
+                width: 94%;
             }
 
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .top5-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .methodology {
+                grid-template-columns: 1fr;
+            }
 
             .section {
-
-                padding: 18px;
+                padding: 20px;
             }
 
-
-            .chart-container {
-
-                height: 350px;
-            }
-
-
-            .chart-container canvas {
-
-                height: 350px;
+            h1 {
+                font-size: 24px;
             }
         }
 
@@ -568,134 +497,211 @@
 
 <body>
 
-
 <div class="container">
 
 
-    <!-- =====================================================
+    <!-- =================================
          Header
-    ====================================================== -->
+    ================================== -->
 
     <div class="header">
 
+        <div class="brand">
+            STOCK AI · V5.7
+        </div>
+
         <h1>
-            AI Top-5 策略回測
+            Top-N 股票選股策略回測
         </h1>
 
-        <p>
-            基於機器學習預測結果，
-            每個回測日期選擇預測未來 20 個交易日報酬最高的 5 檔股票，
-            並與全市場平均報酬進行比較。
-        </p>
-
-        <a
-            href="/market-backtest/"
-            class="back-link"
-        >
-            ← 返回市場回測
-        </a>
+        <div class="subtitle">
+            基於機器學習預測未來 20 日報酬，
+            對全市場股票進行排序並選出 Top-5，
+            再與全市場平均報酬進行比較。
+        </div>
 
     </div>
 
 
-    <!-- =====================================================
-         Summary
-    ====================================================== -->
+    <!-- =================================
+         Error
+    ================================== -->
+
+    {% if error %}
+
+    <div class="error">
+        ⚠ {{ error }}
+    </div>
+
+    {% endif %}
+
+
+    <!-- =================================
+         Summary Cards
+    ================================== -->
 
     <div class="summary-grid">
 
 
-        <div class="summary-card">
+        <div class="card">
 
-            <div class="summary-title">
-                策略
+            <div class="card-label">
+                Top-5 平均實際報酬
             </div>
 
-            <div class="summary-value">
-                Top 5
+            <div class="card-value
+                {% if summary.average_actual >= 0 %}
+                    positive
+                {% else %}
+                    negative
+                {% endif %}
+            ">
+
+                {{ summary.average_actual|floatformat:2 }}%
+
             </div>
 
-            <div class="summary-sub">
-                每期選擇 5 檔股票
+            <div class="card-desc">
+                Top-5 股票未來 20 日平均實際報酬
             </div>
 
         </div>
 
 
-        <div class="summary-card">
+        <div class="card">
 
-            <div class="summary-title">
-                回測期間
+            <div class="card-label">
+                全市場平均報酬
             </div>
 
-            <div class="summary-value"
-                 style="font-size:18px;">
+            <div class="card-value">
 
-                {% if summary %}
-                    {{ summary.start_date }}
-                    <br>
-                    ～ {{ summary.end_date }}
-                {% else %}
-                    -
-                {% endif %}
+                {{ summary.average_market|floatformat:2 }}%
 
+            </div>
+
+            <div class="card-desc">
+                同期全市場股票平均實際報酬
             </div>
 
         </div>
 
 
-        <div class="summary-card">
+        <div class="card">
 
-            <div class="summary-title">
-                Top-5 累積報酬
+            <div class="card-label">
+                平均超額報酬
             </div>
 
-            <div class="summary-value">
-
-                {% if summary %}
-                    {{ summary.strategy_cumulative|floatformat:2 }}%
+            <div class="card-value
+                {% if summary.average_excess >= 0 %}
+                    positive
                 {% else %}
-                    -
+                    negative
                 {% endif %}
+            ">
 
+                {{ summary.average_excess|floatformat:2 }}%
+
+            </div>
+
+            <div class="card-desc">
+                Top-5 與市場平均報酬之差
             </div>
 
         </div>
 
 
-        <div class="summary-card">
+        <div class="card">
 
-            <div class="summary-title">
-                全市場累積報酬
+            <div class="card-label">
+                超越市場比例
             </div>
 
-            <div class="summary-value">
+            <div class="card-value">
 
-                {% if summary %}
-                    {{ summary.market_cumulative|floatformat:2 }}%
-                {% else %}
-                    -
-                {% endif %}
+                {{ summary.outperform_rate|floatformat:2 }}%
 
+            </div>
+
+            <div class="card-desc">
+                Top-5 實際報酬高於市場的回測期間比例
             </div>
 
         </div>
 
 
-        <div class="summary-card">
+        <div class="card">
 
-            <div class="summary-title">
-                超額報酬
+            <div class="card-label">
+                正報酬比例
             </div>
 
-            <div class="summary-value">
+            <div class="card-value">
 
-                {% if summary %}
-                    {{ summary.excess_cumulative|floatformat:2 }}%
-                {% else %}
-                    -
-                {% endif %}
+                {{ summary.positive_return_rate|floatformat:2 }}%
 
+            </div>
+
+            <div class="card-desc">
+                Top-5 平均實際報酬為正的期間比例
+            </div>
+
+        </div>
+
+
+        <div class="card">
+
+            <div class="card-label">
+                預測方向準確率
+            </div>
+
+            <div class="card-value">
+
+                {{ summary.direction_accuracy|floatformat:2 }}%
+
+            </div>
+
+            <div class="card-desc">
+                預測上漲／下跌方向與實際結果一致比例
+            </div>
+
+        </div>
+
+
+        <div class="card">
+
+            <div class="card-label">
+                最佳回測期間
+            </div>
+
+            <div class="card-value positive">
+
+                +{{ summary.best_return|floatformat:2 }}%
+
+            </div>
+
+            <div class="card-desc">
+                {{ summary.best_date }}
+            </div>
+
+        </div>
+
+
+        <div class="card">
+
+            <div class="card-label">
+                最差回測期間
+            </div>
+
+            <div class="card-value negative">
+
+                {{ summary.worst_return|floatformat:2 }}%
+
+            </div>
+
+            <div class="card-desc">
+                {{ summary.worst_date }}
             </div>
 
         </div>
@@ -704,318 +710,136 @@
     </div>
 
 
-    <!-- =====================================================
-         Strategy Flow
-    ====================================================== -->
-
-    <div class="section">
-
-        <div class="section-title">
-            策略流程
-        </div>
-
-
-        <div class="strategy-flow">
-
-
-            <div class="flow-item">
-
-                <div class="flow-number">
-                    STEP 01
-                </div>
-
-                <div class="flow-title">
-                    股票資料
-                </div>
-
-                <div class="flow-text">
-                    取得市場股票歷史資料
-                </div>
-
-            </div>
-
-
-            <div class="flow-item">
-
-                <div class="flow-number">
-                    STEP 02
-                </div>
-
-                <div class="flow-title">
-                    AI 預測
-                </div>
-
-                <div class="flow-text">
-                    預測未來 20 個交易日報酬
-                </div>
-
-            </div>
-
-
-            <div class="flow-item">
-
-                <div class="flow-number">
-                    STEP 03
-                </div>
-
-                <div class="flow-title">
-                    排名
-                </div>
-
-                <div class="flow-text">
-                    依預測報酬由高至低排序
-                </div>
-
-            </div>
-
-
-            <div class="flow-item">
-
-                <div class="flow-number">
-                    STEP 04
-                </div>
-
-                <div class="flow-title">
-                    Top 5
-                </div>
-
-                <div class="flow-text">
-                    選擇預測報酬最高的 5 檔
-                </div>
-
-            </div>
-
-
-            <div class="flow-item">
-
-                <div class="flow-number">
-                    STEP 05
-                </div>
-
-                <div class="flow-title">
-                    回測
-                </div>
-
-                <div class="flow-text">
-                    比較策略與市場績效
-                </div>
-
-            </div>
-
-
-        </div>
-
-    </div>
-
-
-    <!-- =====================================================
+    <!-- =================================
          Performance Chart
-    ====================================================== -->
+    ================================== -->
 
     <div class="section">
 
         <div class="section-title">
-            累積報酬績效
+            策略績效比較
         </div>
 
-        <div class="section-description">
-
-            比較 AI Top-5 選股策略與全市場平均報酬。
-            每一期依模型預測結果重新選擇 Top-5 股票。
-
+        <div class="section-desc">
+            比較各回測期間 Top-5 與全市場的實際報酬。
+            不進行重疊 20 日報酬的累積複利計算。
         </div>
 
+        <div class="chart-wrapper">
 
-        <div class="chart-container">
-
-            <canvas id="strategyChart"></canvas>
+            <canvas id="performanceChart"></canvas>
 
         </div>
 
     </div>
 
 
-    <!-- =====================================================
-         Top 5 每期選股
-    ====================================================== -->
+    <!-- =================================
+         Latest Top 5
+    ================================== -->
 
     <div class="section">
 
         <div class="section-title">
-            Top-5 每期選股
+            Top-5 選股明細
         </div>
 
-        <div class="section-description">
-
-            顯示每個回測日期由模型選出的 Top-5 股票。
-
+        <div class="section-desc">
+            最新回測日期依模型預測的未來 20 日報酬由高至低排序。
         </div>
 
 
         {% if strategy_dates %}
 
-            <div id="dateGroups">
+        <div class="top5-grid">
 
-                {% for date_group in strategy_dates %}
+            {% for stock in strategy_dates %}
 
-                <div
-                    class="date-group strategy-date-item"
-                >
+            <div class="stock-card">
 
-                    <div class="date-header">
+                <div class="stock-rank">
+                    RANK {{ stock.rank }}
+                </div>
 
-                        {{ date_group.date }}
+                <div class="stock-name">
+                    {{ stock.name }}
+                </div>
 
-                    </div>
-
-
-                    <div class="date-body">
-
-                        <div class="table-wrapper">
-
-                            <table>
-
-                                <thead>
-
-                                    <tr>
-
-                                        <th>
-                                            Rank
-                                        </th>
-
-                                        <th>
-                                            股票代號
-                                        </th>
-
-                                        <th>
-                                            股票名稱
-                                        </th>
-
-                                        <th>
-                                            預測報酬
-                                        </th>
-
-                                        <th>
-                                            實際報酬
-                                        </th>
-
-                                    </tr>
-
-                                </thead>
+                <div class="stock-symbol">
+                    {{ stock.symbol }}
+                </div>
 
 
-                                <tbody>
+                <div class="stock-row">
 
-                                    {% for stock in date_group.stocks %}
+                    <span class="stock-label">
+                        預測 20 日報酬
+                    </span>
 
-                                    <tr>
+                    <span class="stock-value
+                        {% if stock.predicted_return_20 >= 0 %}
+                            positive
+                        {% else %}
+                            negative
+                        {% endif %}
+                    ">
 
-                                        <td>
-                                            {{ stock.rank }}
-                                        </td>
+                        {{ stock.predicted_return_20|floatformat:2 }}%
 
-
-                                        <td class="symbol">
-
-                                            {{ stock.symbol }}
-
-                                        </td>
-
-
-                                        <td>
-
-                                            {{ stock.name|default:"-" }}
-
-                                        </td>
-
-
-                                        <td>
-
-                                            {{ stock.predicted_return_20|floatformat:2 }}%
-
-                                        </td>
-
-
-                                        <td>
-
-                                            {% if stock.actual_return_20 >= 0 %}
-
-                                                <span class="positive">
-
-                                                    +{{ stock.actual_return_20|floatformat:2 }}%
-
-                                                </span>
-
-                                            {% else %}
-
-                                                <span class="negative">
-
-                                                    {{ stock.actual_return_20|floatformat:2 }}%
-
-                                                </span>
-
-                                            {% endif %}
-
-                                        </td>
-
-                                    </tr>
-
-                                    {% endfor %}
-
-                                </tbody>
-
-                            </table>
-
-                        </div>
-
-                    </div>
+                    </span>
 
                 </div>
 
-                {% endfor %}
+
+                <div class="stock-row">
+
+                    <span class="stock-label">
+                        實際 20 日報酬
+                    </span>
+
+                    <span class="stock-value
+                        {% if stock.actual_return_20 >= 0 %}
+                            positive
+                        {% else %}
+                            negative
+                        {% endif %}
+                    ">
+
+                        {{ stock.actual_return_20|floatformat:2 }}%
+
+                    </span>
+
+                </div>
 
             </div>
 
+            {% endfor %}
 
-            <div
-                id="datePagination"
-                class="pagination"
-            ></div>
-
-
-            <div
-                id="datePageInfo"
-                class="page-info"
-            ></div>
+        </div>
 
         {% else %}
 
-            <div class="empty">
-
-                尚無策略選股資料。
-
-            </div>
+        <div class="note">
+            目前沒有可顯示的 Top-5 選股資料。
+        </div>
 
         {% endif %}
 
     </div>
 
 
-    <!-- =====================================================
-         Strategy Performance Table
-    ====================================================== -->
+    <!-- =================================
+         Performance Table
+    ================================== -->
 
     <div class="section">
 
         <div class="section-title">
-            策略績效明細
+            回測期間績效
         </div>
 
-        <div class="section-description">
-
-            每個回測日期的 Top-5 策略報酬、
-            全市場報酬與超額報酬。
-
+        <div class="section-desc">
+            每個回測日期皆重新進行全市場排序並選出 Top-5。
         </div>
 
 
@@ -1038,15 +862,15 @@
                         </th>
 
                         <th>
-                            預測平均報酬
+                            預測平均
                         </th>
 
                         <th>
-                            Top-5 實際報酬
+                            實際平均
                         </th>
 
                         <th>
-                            市場平均報酬
+                            市場平均
                         </th>
 
                         <th>
@@ -1054,11 +878,15 @@
                         </th>
 
                         <th>
-                            策略累積報酬
+                            正報酬比例
                         </th>
 
                         <th>
-                            市場累積報酬
+                            超越市場
+                        </th>
+
+                        <th>
+                            方向準確率
                         </th>
 
                     </tr>
@@ -1084,50 +912,50 @@
                             {{ row.predicted_avg|floatformat:2 }}%
                         </td>
 
-                        <td>
-
+                        <td class="
                             {% if row.actual_avg >= 0 %}
-
-                                <span class="positive">
-
-                                    +{{ row.actual_avg|floatformat:2 }}%
-
-                                </span>
-
+                                positive
                             {% else %}
-
-                                <span class="negative">
-
-                                    {{ row.actual_avg|floatformat:2 }}%
-
-                                </span>
-
+                                negative
                             {% endif %}
+                        ">
+
+                            {{ row.actual_avg|floatformat:2 }}%
 
                         </td>
 
                         <td>
-
                             {{ row.market_avg|floatformat:2 }}%
+                        </td>
+
+                        <td class="
+                            {% if row.excess_return >= 0 %}
+                                positive
+                            {% else %}
+                                negative
+                            {% endif %}
+                        ">
+
+                            {{ row.excess_return|floatformat:2 }}%
 
                         </td>
 
                         <td>
+                            {{ row.positive_rate|floatformat:2 }}%
+                        </td>
 
-                            {% if row.excess_return >= 0 %}
+                        <td>
+
+                            {% if row.outperform_market %}
 
                                 <span class="positive">
-
-                                    +{{ row.excess_return|floatformat:2 }}%
-
+                                    ✓
                                 </span>
 
                             {% else %}
 
                                 <span class="negative">
-
-                                    {{ row.excess_return|floatformat:2 }}%
-
+                                    ✕
                                 </span>
 
                             {% endif %}
@@ -1135,15 +963,7 @@
                         </td>
 
                         <td>
-
-                            {{ row.cumulative_strategy|floatformat:2 }}%
-
-                        </td>
-
-                        <td>
-
-                            {{ row.cumulative_market|floatformat:2 }}%
-
+                            {{ row.direction_accuracy|floatformat:2 }}%
                         </td>
 
                     </tr>
@@ -1158,13 +978,112 @@
 
         {% else %}
 
-            <div class="empty">
+        <div class="note">
+            目前沒有回測資料。
+        </div>
 
-                尚無策略績效資料。
+        {% endif %}
+
+    </div>
+
+
+    <!-- =================================
+         Methodology
+    ================================== -->
+
+    <div class="section">
+
+        <div class="section-title">
+            V5.7 回測方法
+        </div>
+
+        <div class="section-desc">
+            以時間序列方式驗證模型在不同期間的選股結果。
+        </div>
+
+
+        <div class="methodology">
+
+
+            <div class="method-step">
+
+                <div class="step-number">
+                    STEP 01
+                </div>
+
+                <div class="step-title">
+                    特徵工程
+                </div>
+
+                <div class="step-text">
+                    使用報酬率、均線、RSI、成交量與波動度等特徵。
+                </div>
 
             </div>
 
-        {% endif %}
+
+            <div class="method-step">
+
+                <div class="step-number">
+                    STEP 02
+                </div>
+
+                <div class="step-title">
+                    報酬預測
+                </div>
+
+                <div class="step-text">
+                    使用 LightGBM 預測各股票未來 20 日報酬。
+                </div>
+
+            </div>
+
+
+            <div class="method-step">
+
+                <div class="step-number">
+                    STEP 03
+                </div>
+
+                <div class="step-title">
+                    Top-N 排序
+                </div>
+
+                <div class="step-text">
+                    每個回測日期將全市場股票依預測報酬排序，選出 Top-5。
+                </div>
+
+            </div>
+
+
+            <div class="method-step">
+
+                <div class="step-number">
+                    STEP 04
+                </div>
+
+                <div class="step-title">
+                    回測比較
+                </div>
+
+                <div class="step-text">
+                    比較 Top-5 與全市場實際報酬，評估選股效果。
+                </div>
+
+            </div>
+
+
+        </div>
+
+
+        <div class="note">
+
+            <strong>方法說明：</strong>
+            V5.7 不再將不同回測日期的「未來 20 日報酬」
+            直接進行累積複利，因此不呈現舊版的累積報酬數值。
+            主要以平均實際報酬、超額報酬、超越市場比例及方向準確率評估模型選股效果。
+
+        </div>
 
     </div>
 
@@ -1172,942 +1091,179 @@
 </div>
 
 
-<!-- =========================================================
-     Chart
-========================================================= -->
+<!-- =================================
+     Chart.js
+================================== -->
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 
 <script>
 
-const performanceData = [
+    const dates = {{ chart_dates|safe }};
 
-    {% for row in performance %}
+    const topN = {{ chart_topn|safe }};
 
-    {
-        date: "{{ row.date }}",
-
-        strategy:
-            Number(
-                "{{ row.cumulative_strategy|default:0 }}"
-            ),
-
-        market:
-            Number(
-                "{{ row.cumulative_market|default:0 }}"
-            )
-    }
-
-    {% if not forloop.last %},{% endif %}
-
-    {% endfor %}
-
-];
-
-
-function drawStrategyChart() {
-
-    const canvas =
-        document.getElementById(
-            "strategyChart"
-        );
-
-
-    if (
-        !canvas ||
-        performanceData.length === 0
-    ) {
-
-        return;
-
-    }
+    const market = {{ chart_market|safe }};
 
 
     const ctx =
-        canvas.getContext("2d");
-
-
-    const dpr =
-        window.devicePixelRatio || 1;
-
-
-    const rect =
-        canvas.getBoundingClientRect();
-
-
-    const width =
-        Math.max(
-            300,
-            Math.floor(rect.width)
-        );
-
-
-    const height =
-        Math.max(
-            300,
-            Math.floor(rect.height)
-        );
-
-
-    canvas.width =
-        Math.round(
-            width * dpr
-        );
-
-
-    canvas.height =
-        Math.round(
-            height * dpr
-        );
-
-
-    canvas.style.width =
-        width + "px";
-
-
-    canvas.style.height =
-        height + "px";
-
-
-    ctx.setTransform(
-        dpr,
-        0,
-        0,
-        dpr,
-        0,
-        0
-    );
-
-
-    const paddingLeft = 70;
-
-    const paddingRight = 30;
-
-    const paddingTop = 45;
-
-    const paddingBottom = 50;
-
-
-    const plotWidth =
-        width
-        -
-        paddingLeft
-        -
-        paddingRight;
-
-
-    const plotHeight =
-        height
-        -
-        paddingTop
-        -
-        paddingBottom;
-
-
-    let values = [];
-
-
-    performanceData.forEach(
-        function(row) {
-
-            if (
-                Number.isFinite(
-                    row.strategy
-                )
-            ) {
-
-                values.push(
-                    row.strategy
-                );
-
-            }
-
-
-            if (
-                Number.isFinite(
-                    row.market
-                )
-            ) {
-
-                values.push(
-                    row.market
-                );
-
-            }
-
-        }
-    );
-
-
-    if (values.length === 0) {
-
-        return;
-
-    }
-
-
-    let minValue =
-        Math.min(...values);
-
-
-    let maxValue =
-        Math.max(...values);
-
-
-    let range =
-        maxValue - minValue;
-
-
-    if (range === 0) {
-
-        range = 1;
-
-    }
-
-
-    minValue -=
-        range * 0.1;
-
-
-    maxValue +=
-        range * 0.1;
-
-
-    const xStep =
-        performanceData.length > 1
-        ?
-        plotWidth /
-        (performanceData.length - 1)
-        :
-        0;
-
-
-    function getX(index) {
-
-        return (
-            paddingLeft
-            +
-            index * xStep
-        );
-
-    }
-
-
-    function getY(value) {
-
-        return (
-            paddingTop
-            +
-            plotHeight
-            *
-            (
-                (maxValue - value)
-                /
-                (maxValue - minValue)
-            )
-        );
-
-    }
-
-
-    ctx.clearRect(
-        0,
-        0,
-        width,
-        height
-    );
-
-
-    /* -----------------------------------------------------
-       背景
-    ----------------------------------------------------- */
-
-    ctx.fillStyle =
-        "#ffffff";
-
-    ctx.fillRect(
-        0,
-        0,
-        width,
-        height
-    );
-
-
-    /* -----------------------------------------------------
-       Grid
-    ----------------------------------------------------- */
-
-    ctx.lineWidth = 1;
-
-    ctx.strokeStyle =
-        "#e5e7eb";
-
-    ctx.fillStyle =
-        "#64748b";
-
-    ctx.font =
-        "12px Arial";
-
-    ctx.textAlign =
-        "right";
-
-
-    const gridCount = 5;
-
-
-    for (
-        let i = 0;
-        i <= gridCount;
-        i++
-    ) {
-
-        const ratio =
-            i / gridCount;
-
-
-        const value =
-            maxValue
-            -
-            (
-                maxValue
-                -
-                minValue
-            )
-            * ratio;
-
-
-        const y =
-            getY(value);
-
-
-        ctx.beginPath();
-
-        ctx.moveTo(
-            paddingLeft,
-            y
-        );
-
-        ctx.lineTo(
-            width - paddingRight,
-            y
-        );
-
-        ctx.stroke();
-
-
-        ctx.fillText(
-            value.toFixed(1) + "%",
-            paddingLeft - 10,
-            y + 4
-        );
-
-    }
-
-
-    /* -----------------------------------------------------
-       Axis
-    ----------------------------------------------------- */
-
-    ctx.strokeStyle =
-        "#cbd5e1";
-
-
-    ctx.beginPath();
-
-    ctx.moveTo(
-        paddingLeft,
-        paddingTop
-    );
-
-    ctx.lineTo(
-        paddingLeft,
-        height - paddingBottom
-    );
-
-    ctx.lineTo(
-        width - paddingRight,
-        height - paddingBottom
-    );
-
-    ctx.stroke();
-
-
-    /* -----------------------------------------------------
-       Date
-    ----------------------------------------------------- */
-
-    ctx.fillStyle =
-        "#64748b";
-
-    ctx.font =
-        "12px Arial";
-
-    ctx.textAlign =
-        "center";
-
-
-    const labelStep =
-        Math.max(
-            1,
-            Math.ceil(
-                performanceData.length / 7
-            )
-        );
-
-
-    performanceData.forEach(
-        function(row, index) {
-
-            if (
-                index % labelStep !== 0
-                &&
-                index !==
-                performanceData.length - 1
-            ) {
-
-                return;
-
-            }
-
-
-            const x =
-                getX(index);
-
-
-            ctx.fillText(
-                row.date,
-                x,
-                height - 15
-            );
-
-        }
-    );
-
-
-    /* -----------------------------------------------------
-       Draw Line
-    ----------------------------------------------------- */
-
-    function drawLine(
-        key,
-        lineColor
-    ) {
-
-        ctx.strokeStyle =
-            lineColor;
-
-        ctx.lineWidth =
-            2.5;
-
-        ctx.lineJoin =
-            "round";
-
-        ctx.lineCap =
-            "round";
-
-
-        ctx.beginPath();
-
-
-        let firstPoint = true;
-
-
-        performanceData.forEach(
-            function(row, index) {
-
-                const value =
-                    Number(
-                        row[key]
-                    );
-
-
-                if (
-                    !Number.isFinite(
-                        value
-                    )
-                ) {
-
-                    return;
-
-                }
-
-
-                const x =
-                    getX(index);
-
-
-                const y =
-                    getY(value);
-
-
-                if (firstPoint) {
-
-                    ctx.moveTo(
-                        x,
-                        y
-                    );
-
-                    firstPoint = false;
-
-                } else {
-
-                    ctx.lineTo(
-                        x,
-                        y
-                    );
-
-                }
-
-            }
-        );
-
-
-        ctx.stroke();
-
-
-        /* -------------------------------------------------
-           Points
-        ------------------------------------------------- */
-
-        ctx.fillStyle =
-            lineColor;
-
-
-        performanceData.forEach(
-            function(row, index) {
-
-                const value =
-                    Number(
-                        row[key]
-                    );
-
-
-                if (
-                    !Number.isFinite(
-                        value
-                    )
-                ) {
-
-                    return;
-
-                }
-
-
-                if (
-                    performanceData.length > 80
-                    &&
-                    index % 3 !== 0
-                    &&
-                    index !==
-                    performanceData.length - 1
-                ) {
-
-                    return;
-
-                }
-
-
-                const x =
-                    getX(index);
-
-
-                const y =
-                    getY(value);
-
-
-                ctx.beginPath();
-
-
-                ctx.arc(
-                    x,
-                    y,
-                    2.5,
-                    0,
-                    Math.PI * 2
-                );
-
-
-                ctx.fill();
-
-            }
-        );
-
-    }
-
-
-    drawLine(
-        "strategy",
-        "#2563eb"
-    );
-
-
-    drawLine(
-        "market",
-        "#dc2626"
-    );
-
-
-    /* -----------------------------------------------------
-       Legend
-    ----------------------------------------------------- */
-
-    ctx.textAlign =
-        "left";
-
-    ctx.font =
-        "13px Arial";
-
-
-    let legendX =
-        paddingLeft;
-
-
-    const legends = [
-
+        document
+        .getElementById(
+            "performanceChart"
+        )
+        .getContext("2d");
+
+
+    new Chart(
+        ctx,
         {
-            label: "AI Top-5 策略",
-            color: "#2563eb"
-        },
 
-        {
-            label: "全市場",
-            color: "#dc2626"
-        }
+            type: "line",
 
-    ];
+            data: {
 
+                labels: dates,
 
-    legends.forEach(
-        function(item) {
+                datasets: [
 
-            ctx.strokeStyle =
-                item.color;
+                    {
+                        label:
+                            "Top-5 實際報酬",
 
-            ctx.lineWidth =
-                3;
+                        data:
+                            topN,
 
+                        tension:
+                            0.25,
 
-            ctx.beginPath();
+                        borderWidth:
+                            2,
 
-            ctx.moveTo(
-                legendX,
-                22
-            );
+                        pointRadius:
+                            3
+                    },
 
-            ctx.lineTo(
-                legendX + 20,
-                22
-            );
+                    {
+                        label:
+                            "全市場平均",
 
-            ctx.stroke();
+                        data:
+                            market,
 
+                        tension:
+                            0.25,
 
-            ctx.fillStyle =
-                "#1f2937";
+                        borderWidth:
+                            2,
 
+                        pointRadius:
+                            3
+                    }
 
-            ctx.fillText(
-                item.label,
-                legendX + 28,
-                26
-            );
+                ]
 
+            },
 
-            legendX +=
-                ctx.measureText(
-                    item.label
-                ).width
-                +
-                90;
+            options: {
 
-        }
-    );
+                responsive:
+                    true,
 
-}
+                maintainAspectRatio:
+                    false,
 
+                interaction: {
 
-document.addEventListener(
-    "DOMContentLoaded",
-    function() {
+                    mode:
+                        "index",
 
-        drawStrategyChart();
-
-    }
-);
-
-
-let resizeTimer;
-
-
-window.addEventListener(
-    "resize",
-    function() {
-
-        clearTimeout(
-            resizeTimer
-        );
-
-
-        resizeTimer =
-            setTimeout(
-                function() {
-
-                    drawStrategyChart();
+                    intersect:
+                        false
 
                 },
-                150
-            );
 
-    }
-);
+                plugins: {
 
+                    legend: {
 
-/* =========================================================
-   日期分頁
-========================================================= */
+                        position:
+                            "top"
 
-const dateItems =
-    document.querySelectorAll(
-        ".strategy-date-item"
-    );
+                    },
 
+                    tooltip: {
 
-const datePagination =
-    document.getElementById(
-        "datePagination"
-    );
+                        callbacks: {
 
+                            label:
+                                function(context) {
 
-const datePageInfo =
-    document.getElementById(
-        "datePageInfo"
-    );
+                                    return (
+                                        context.dataset.label
+                                        + ": "
+                                        + Number(
+                                            context.raw
+                                        ).toFixed(2)
+                                        + "%"
+                                    );
 
+                                }
 
-const DATE_PAGE_SIZE = 20;
+                        }
 
+                    }
 
-let currentDatePage = 1;
+                },
 
+                scales: {
 
-const totalDatePages =
-    Math.ceil(
-        dateItems.length /
-        DATE_PAGE_SIZE
-    );
+                    y: {
 
+                        ticks: {
 
-function renderDatePage(
-    page
-) {
+                            callback:
+                                function(value) {
 
-    currentDatePage =
-        page;
+                                    return value + "%";
 
+                                }
 
-    const start =
-        (
-            page - 1
-        )
-        *
-        DATE_PAGE_SIZE;
+                        },
 
+                        title: {
 
-    const end =
-        start +
-        DATE_PAGE_SIZE;
+                            display:
+                                true,
 
+                            text:
+                                "實際報酬"
 
-    dateItems.forEach(
-        function(item, index) {
+                        }
 
-            if (
-                index >= start
-                &&
-                index < end
-            ) {
+                    },
 
-                item.style.display =
-                    "block";
+                    x: {
 
-            } else {
+                        title: {
 
-                item.style.display =
-                    "none";
+                            display:
+                                true,
+
+                            text:
+                                "回測日期"
+
+                        }
+
+                    }
+
+                }
 
             }
 
         }
+
     );
-
-
-    renderDatePagination();
-
-
-    if (datePageInfo) {
-
-        const startNumber =
-            dateItems.length === 0
-            ?
-            0
-            :
-            start + 1;
-
-
-        const endNumber =
-            Math.min(
-                end,
-                dateItems.length
-            );
-
-
-        datePageInfo.textContent =
-            `顯示 ${startNumber} - ${endNumber} 筆，共 ${dateItems.length} 筆`;
-
-    }
-
-}
-
-
-function renderDatePagination() {
-
-    if (!datePagination) {
-
-        return;
-
-    }
-
-
-    datePagination.innerHTML =
-        "";
-
-
-    if (totalDatePages <= 1) {
-
-        return;
-
-    }
-
-
-    const prev =
-        document.createElement(
-            "button"
-        );
-
-
-    prev.textContent =
-        "上一頁";
-
-
-    prev.disabled =
-        currentDatePage === 1;
-
-
-    prev.onclick =
-        function() {
-
-            if (
-                currentDatePage > 1
-            ) {
-
-                renderDatePage(
-                    currentDatePage - 1
-                );
-
-            }
-
-        };
-
-
-    datePagination.appendChild(
-        prev
-    );
-
-
-    for (
-        let i = 1;
-        i <= totalDatePages;
-        i++
-    ) {
-
-        const button =
-            document.createElement(
-                "button"
-            );
-
-
-        button.textContent =
-            i;
-
-
-        if (
-            i === currentDatePage
-        ) {
-
-            button.classList.add(
-                "active"
-            );
-
-        }
-
-
-        button.onclick =
-            function() {
-
-                renderDatePage(i);
-
-            };
-
-
-        datePagination.appendChild(
-            button
-        );
-
-    }
-
-
-    const next =
-        document.createElement(
-            "button"
-        );
-
-
-    next.textContent =
-        "下一頁";
-
-
-    next.disabled =
-        currentDatePage ===
-        totalDatePages;
-
-
-    next.onclick =
-        function() {
-
-            if (
-                currentDatePage <
-                totalDatePages
-            ) {
-
-                renderDatePage(
-                    currentDatePage + 1
-                );
-
-            }
-
-        };
-
-
-    datePagination.appendChild(
-        next
-    );
-
-}
-
-
-if (dateItems.length > 0) {
-
-    renderDatePage(1);
-
-}
 
 </script>
 

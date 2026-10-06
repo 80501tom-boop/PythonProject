@@ -1,0 +1,2 @@
+﻿version,top_n,backtest_periods,start_date,end_date,average_actual,average_market,average_excess,positive_return_rate,outperform_rate,direction_accuracy,max_drawdown,best_date,best_return,worst_date,worst_return
+V5.7,5,21,2026-04-08,2026-08-31,13.79455807514795,7.728942336079921,6.065615739068029,85.71428571428571,76.19047619047619,76.19047619047619,-11.731059684139456,2026-04-08,48.062385733403204,2026-06-18,-11.73105968413946
