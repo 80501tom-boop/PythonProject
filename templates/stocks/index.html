@@ -85,25 +85,10 @@
             新增股票
         ========================= -->
 
-        <form method="POST"
-            action="{% url 'add_stock' %}"
-            class="search-form">
-
+        <form method="POST" action="{% url 'add_stock' %}" class="search-form">
             {% csrf_token %}
-
-            <input
-                type="text"
-                name="symbol"
-                placeholder="新增股票，例如：2330"
-                maxlength="10"
-                autocomplete="off"
-                required
-            >
-
-            <button type="submit">
-                新增股票
-            </button>
-
+            <input type="text" name="symbol" placeholder="輸入股票代號，例如 2330" required>
+            <button type="submit">新增股票</button>
         </form>
 
 
@@ -207,7 +192,108 @@
 
     </section>
 
+    <!-- V6.1 最新前瞻預測 -->
+    <section class="prediction-section">
 
+        <div class="prediction-header">
+            <div>
+                <h2>AI 最新選股預測</h2>
+                <p>依模型預測的未來 20 個交易日報酬排序</p>
+            </div>
+
+            <a href="{% url 'prediction_history' %}">
+                歷史預測 →
+            </a>
+        </div>
+
+        {% if latest_predictions %}
+
+            <div class="prediction-meta">
+                <span>
+                    預測日期：
+                    {{ latest_prediction_date|date:"Y-m-d" }}
+                </span>
+
+                <span>
+                    資料日期：
+                    {{ latest_data_date|date:"Y-m-d" }}
+                </span>
+
+                <span>
+                    模型版本：
+                    {{ latest_model_version|default:"未提供" }}
+                </span>
+            </div>
+
+            <div class="prediction-table-wrapper">
+                <table class="prediction-table">
+                    <thead>
+                        <tr>
+                            <th>排名</th>
+                            <th>股票</th>
+                            <th>最新收盤價</th>
+                            <th>預測 20 日報酬</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for item in latest_predictions %}
+                            <tr>
+                                <td>
+                                    <span class="prediction-rank">
+                                        {{ item.rank }}
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <a href="{% url 'stock_detail' symbol=item.symbol %}">
+                                        <strong>{{ item.stock_name }}</strong>
+                                        <span class="prediction-symbol">
+                                            {{ item.symbol }}
+                                        </span>
+                                    </a>
+                                </td>
+
+                                <td>
+                                    {{ item.close_price|floatformat:2 }}
+                                </td>
+
+                                <td>
+                                    {% if item.predicted_return_20 > 0 %}
+                                        <span class="prediction-positive">
+                                            +{{ item.predicted_return_20|floatformat:2 }}%
+                                        </span>
+                                    {% elif item.predicted_return_20 < 0 %}
+                                        <span class="prediction-negative">
+                                            {{ item.predicted_return_20|floatformat:2 }}%
+                                        </span>
+                                    {% else %}
+                                        {{ item.predicted_return_20|floatformat:2 }}%
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="prediction-footer">
+                <a href="{% url 'market_ranking' %}">
+                    查看完整 AI 市場排名 →
+                </a>
+            </div>
+
+            <p class="prediction-disclaimer">
+                以上為模型預測值，並非實際報酬或獲利保證。
+            </p>
+
+        {% else %}
+
+            <p>目前尚無已保存的前瞻預測紀錄。</p>
+
+        {% endif %}
+
+    </section>
 
     <!-- =========================
          未來功能
@@ -256,7 +342,6 @@
 
 
     </section>
-
 
 </main>
 

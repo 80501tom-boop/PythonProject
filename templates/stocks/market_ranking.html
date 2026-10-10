@@ -1,24 +1,23 @@
+
 <!DOCTYPE html>
 <html lang="zh-TW">
 
 <head>
-
     <meta charset="UTF-8">
-
     <meta name="viewport"
           content="width=device-width, initial-scale=1.0">
 
-    <title>AI 全市場排名</title>
+    <title>AI 全市場排名 | STOCK AI</title>
 
     <style>
+        * {
+            box-sizing: border-box;
+        }
 
         body {
             margin: 0;
             padding: 40px;
-            font-family:
-                Arial,
-                "Microsoft JhengHei",
-                sans-serif;
+            font-family: Arial, "Microsoft JhengHei", sans-serif;
             background: #f5f7fa;
             color: #222;
         }
@@ -28,50 +27,196 @@
             margin: auto;
         }
 
+        .back {
+            display: inline-block;
+            margin-bottom: 20px;
+            text-decoration: none;
+            color: #555;
+        }
+
+        .back:hover {
+            color: #0984e3;
+        }
+
         .header {
-            margin-bottom: 30px;
+            margin-bottom: 28px;
         }
 
         .header h1 {
-            margin-bottom: 8px;
+            margin: 0 0 10px;
+            font-size: 30px;
         }
 
         .header p {
             color: #666;
+            margin: 8px 0;
+            line-height: 1.6;
+        }
+
+        .meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .meta-item {
+            padding: 8px 13px;
+            border-radius: 8px;
+            background: #e9eef5;
+            color: #43536a;
+            font-size: 13px;
+        }
+
+        .section {
+            margin-bottom: 28px;
+        }
+
+        .section-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .section-title h2 {
+            margin: 0;
+            font-size: 21px;
+        }
+
+        .section-subtitle {
+            color: #777;
+            font-size: 13px;
         }
 
         .card {
             background: white;
             border-radius: 14px;
             padding: 24px;
-            box-shadow:
-                0 4px 15px
-                rgba(0, 0, 0, 0.08);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
+        }
+
+        /* Top 5 */
+
+        .top-grid {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .top-card {
+            min-width: 0;
+            padding: 20px 14px;
+            background: white;
+            border-radius: 12px;
+            border: 1px solid #e8edf3;
+            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.04);
+            text-align: center;
+        }
+
+        .top-rank {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: #edf2f7;
+            color: #425466;
+            font-weight: bold;
+            margin-bottom: 12px;
+        }
+
+        .top-card:first-child .top-rank {
+            background: #fff0c2;
+            color: #946200;
+        }
+
+        .top-symbol {
+            font-size: 19px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            overflow-wrap: anywhere;
+        }
+
+        .top-price {
+            color: #666;
+            font-size: 13px;
+            margin-bottom: 10px;
+        }
+
+        .top-return {
+            font-size: 17px;
+            font-weight: bold;
+        }
+
+        /* Ranking table */
+
+        .table-tools {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+            margin-bottom: 18px;
+        }
+
+        .search-box {
+            width: 280px;
+            max-width: 100%;
+            padding: 11px 14px;
+            border: 1px solid #dce2e9;
+            border-radius: 8px;
+            background: #fff;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .search-box:focus {
+            border-color: #6c9ed6;
+            box-shadow: 0 0 0 3px rgba(108, 158, 214, 0.12);
+        }
+
+        .result-count {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .table-wrap {
+            width: 100%;
+            overflow-x: auto;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
+            white-space: nowrap;
         }
 
         th {
             background: #f1f3f5;
             padding: 14px;
             text-align: center;
+            font-size: 14px;
+            font-weight: 600;
         }
 
         td {
-            padding: 16px 14px;
+            padding: 15px 14px;
             text-align: center;
             border-bottom: 1px solid #eee;
+            font-size: 14px;
         }
 
-        tr:hover {
-            background: #fafafa;
+        tbody tr:hover {
+            background: #fafcff;
         }
 
         .rank {
             font-weight: bold;
+            color: #526477;
         }
 
         .return {
@@ -86,151 +231,431 @@
             color: #0984e3;
         }
 
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 22px;
+        }
+
+        .page-btn {
+            border: 1px solid #dce2e9;
+            background: white;
+            color: #444;
+            padding: 8px 13px;
+            border-radius: 7px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .page-btn:hover:not(:disabled) {
+            background: #edf3fa;
+        }
+
+        .page-btn.active {
+            background: #34495e;
+            color: white;
+            border-color: #34495e;
+        }
+
+        .page-btn:disabled {
+            color: #bbb;
+            cursor: not-allowed;
+        }
+
         .empty {
             text-align: center;
-            padding: 50px;
+            padding: 50px 20px;
+            color: #777;
+            line-height: 1.9;
+        }
+
+        .empty code {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: #f1f3f5;
+            border-radius: 6px;
+            color: #333;
+        }
+
+        .no-results {
+            display: none;
+            text-align: center;
+            padding: 35px 15px;
             color: #777;
         }
 
-        .back {
-            display: inline-block;
-            margin-bottom: 20px;
-            text-decoration: none;
-            color: #555;
+        .footer-note {
+            margin-top: 18px;
+            color: #888;
+            font-size: 12px;
+            line-height: 1.7;
         }
 
-    </style>
+        @media (max-width: 850px) {
+            body {
+                padding: 25px 18px;
+            }
 
+            .top-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 550px) {
+            body {
+                padding: 20px 12px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .card {
+                padding: 16px 12px;
+            }
+
+            .top-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px;
+            }
+
+            .top-card {
+                padding: 16px 10px;
+            }
+
+            .search-box {
+                width: 100%;
+            }
+
+            .table-tools {
+                align-items: stretch;
+            }
+        }
+    </style>
 </head>
 
 <body>
 
 <div class="container">
 
-    <a href="/" class="back">
-        ← 返回首頁
-    </a>
+    <a href="/" class="back">← 返回首頁</a>
 
     <div class="header">
-
-        <h1>
-            AI 全市場股票排名
-        </h1>
-
-        {% if prediction_date %}
+        <h1>AI 全市場股票排名</h1>
 
         <p>
-            預測基準日：
-            {{ prediction_date }}
+            使用 LightGBM 模型預測各股票未來
+            20 個交易日的報酬率，並依預測結果排序。
         </p>
 
-        {% endif %}
+        <div class="meta">
+            {% if prediction_date %}
+                <div class="meta-item">
+                    預測基準日：{{ prediction_date }}
+                </div>
+            {% endif %}
 
-        <p>
-            LightGBM 預測未來
-            20 個交易日報酬率
-        </p>
+            <div class="meta-item">
+                預測期間：未來 20 個交易日
+            </div>
 
+            <div class="meta-item">
+                模型：LightGBM
+            </div>
+        </div>
     </div>
 
+
+    {% if ranking %}
+
+    <!-- Top 5 精選區 -->
+    <section class="section">
+
+        <div class="section-title">
+            <h2>Top 5 精選排名</h2>
+            <span class="section-subtitle">
+                依預測 20 日報酬率由高至低排列
+            </span>
+        </div>
+
+        <div class="top-grid">
+
+            {% for stock in ranking %}
+                {% if forloop.counter <= 5 %}
+
+                <div class="top-card">
+
+                    <div class="top-rank">
+                        {{ stock.rank }}
+                    </div>
+
+                    <div class="top-symbol">
+                        {{ stock.symbol }}
+                    </div>
+
+                    <div class="top-price">
+                        收盤價
+                        {{ stock.close|floatformat:2 }}
+                    </div>
+
+                    {% if stock.predicted_return_20 >= 0 %}
+                        <div class="top-return positive">
+                            +{{ stock.predicted_return_20|floatformat:2 }}%
+                        </div>
+                    {% else %}
+                        <div class="top-return negative">
+                            {{ stock.predicted_return_20|floatformat:2 }}%
+                        </div>
+                    {% endif %}
+
+                </div>
+
+                {% endif %}
+            {% endfor %}
+
+        </div>
+    </section>
+
+
+    <!-- 完整排名 -->
+    <section class="section">
+
+        <div class="section-title">
+            <h2>全市場完整排名</h2>
+            <span class="section-subtitle">
+                可搜尋所有成功產生預測的股票
+            </span>
+        </div>
+
+        <div class="card">
+
+            <div class="table-tools">
+
+                <input
+                    type="text"
+                    id="stockSearch"
+                    class="search-box"
+                    placeholder="搜尋股票代號，例如 2330"
+                    aria-label="搜尋股票代號"
+                >
+
+                <div class="result-count" id="resultCount">
+                    共 {{ ranking|length }} 檔股票
+                </div>
+
+            </div>
+
+            <div class="table-wrap">
+
+                <table id="rankingTable">
+
+                    <thead>
+                        <tr>
+                            <th>排名</th>
+                            <th>股票代號</th>
+                            <th>收盤價</th>
+                            <th>預測 20 日報酬</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="rankingBody">
+
+                        {% for stock in ranking %}
+
+                        <tr class="stock-row"
+                            data-symbol="{{ stock.symbol }}">
+
+                            <td class="rank">
+                                {{ stock.rank }}
+                            </td>
+
+                            <td>
+                                <strong>{{ stock.symbol }}</strong>
+                            </td>
+
+                            <td>
+                                {{ stock.close|floatformat:2 }}
+                            </td>
+
+                            <td>
+                                {% if stock.predicted_return_20 >= 0 %}
+                                    <span class="return positive">
+                                        +{{ stock.predicted_return_20|floatformat:2 }}%
+                                    </span>
+                                {% else %}
+                                    <span class="return negative">
+                                        {{ stock.predicted_return_20|floatformat:2 }}%
+                                    </span>
+                                {% endif %}
+                            </td>
+
+                        </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+                <div class="no-results" id="noResults">
+                    找不到符合的股票代號。
+                </div>
+
+            </div>
+
+            <div class="pagination" id="pagination"></div>
+
+            <div class="footer-note">
+                註：預測報酬率為模型估計值，並非實際報酬或獲利保證。
+                排名結果僅供模型分析與研究用途。
+            </div>
+
+        </div>
+    </section>
+
+    {% else %}
 
     <div class="card">
 
-        {% if ranking %}
-
-        <table>
-
-            <thead>
-
-                <tr>
-
-                    <th>排名</th>
-
-                    <th>股票代號</th>
-
-                    <th>收盤價</th>
-
-                    <th>預測20日報酬</th>
-
-                </tr>
-
-            </thead>
-
-
-            <tbody>
-
-            {% for stock in ranking %}
-
-                <tr>
-
-                    <td class="rank">
-                        {{ stock.rank }}
-                    </td>
-
-                    <td>
-                        <strong>
-                            {{ stock.symbol }}
-                        </strong>
-                    </td>
-
-                    <td>
-                        {{ stock.close|floatformat:2 }}
-                    </td>
-
-                    <td>
-
-                        {% if stock.predicted_return_20 >= 0 %}
-
-                        <span class="return positive">
-
-                            +{{ stock.predicted_return_20|floatformat:2 }}%
-
-                        </span>
-
-                        {% else %}
-
-                        <span class="return negative">
-
-                            {{ stock.predicted_return_20|floatformat:2 }}%
-
-                        </span>
-
-                        {% endif %}
-
-                    </td>
-
-                </tr>
-
-            {% endfor %}
-
-            </tbody>
-
-        </table>
-
-        {% else %}
-
         <div class="empty">
-
             尚未產生 AI 排名資料。
 
-            <br><br>
+            <br>
 
-            請先執行：
+            請先執行前瞻預測程式：
 
-            <br><br>
+            <br>
 
             <code>
-                python myapp/ml/train_market_model.py
+                python myapp/ml/forward_prediction.py
             </code>
-
         </div>
-
-        {% endif %}
 
     </div>
 
+    {% endif %}
+
 </div>
 
-</body>
 
+<script>
+    (function () {
+        const searchInput = document.getElementById("stockSearch");
+        const tableBody = document.getElementById("rankingBody");
+        const pagination = document.getElementById("pagination");
+        const resultCount = document.getElementById("resultCount");
+        const noResults = document.getElementById("noResults");
+
+        // 沒有排名資料時，不執行表格功能
+        if (!searchInput || !tableBody || !pagination) {
+            return;
+        }
+
+        const allRows = Array.from(
+            tableBody.querySelectorAll(".stock-row")
+        );
+
+        const pageSize = 20;
+        let currentPage = 1;
+        let filteredRows = allRows.slice();
+
+        function filterRows() {
+            const keyword = searchInput.value
+                .trim()
+                .toLowerCase();
+
+            filteredRows = allRows.filter(function (row) {
+                const symbol = (
+                    row.dataset.symbol || ""
+                ).toLowerCase();
+
+                return symbol.includes(keyword);
+            });
+
+            currentPage = 1;
+            renderTable();
+        }
+
+        function renderTable() {
+            const total = filteredRows.length;
+            const totalPages = Math.ceil(total / pageSize);
+
+            allRows.forEach(function (row) {
+                row.style.display = "none";
+            });
+
+            const start = (currentPage - 1) * pageSize;
+            const end = start + pageSize;
+
+            filteredRows.slice(start, end).forEach(function (row) {
+                row.style.display = "";
+            });
+
+            resultCount.textContent =
+                "共 " + total + " 檔股票";
+
+            noResults.style.display =
+                total === 0 ? "block" : "none";
+
+            pagination.innerHTML = "";
+
+            if (totalPages <= 1) {
+                return;
+            }
+
+            function addButton(label, page, disabled, active) {
+                const button = document.createElement("button");
+
+                button.type = "button";
+                button.className = "page-btn";
+                button.textContent = label;
+                button.disabled = disabled;
+
+                if (active) {
+                    button.classList.add("active");
+                }
+
+                button.addEventListener("click", function () {
+                    currentPage = page;
+                    renderTable();
+                });
+
+                pagination.appendChild(button);
+            }
+
+            addButton(
+                "上一頁",
+                currentPage - 1,
+                currentPage === 1,
+                false
+            );
+
+            for (let page = 1; page <= totalPages; page++) {
+                addButton(
+                    String(page),
+                    page,
+                    false,
+                    page === currentPage
+                );
+            }
+
+            addButton(
+                "下一頁",
+                currentPage + 1,
+                currentPage === totalPages,
+                false
+            );
+        }
+
+        searchInput.addEventListener("input", filterRows);
+
+        renderTable();
+    })();
+</script>
+
+</body>
 </html>

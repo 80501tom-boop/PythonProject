@@ -69,7 +69,7 @@ django.setup()
 
 from myapp.models import Stock, StockPrice
 
-
+from myapp.models import PredictionHistory
 # ============================================================
 # 基本設定
 # ============================================================
@@ -117,11 +117,17 @@ os.makedirs(
 # 輸出檔案
 # ============================================================
 
+# 完整前瞻預測結果
 OUTPUT_FILE = os.path.join(
     OUTPUT_DIR,
     "forward_prediction.csv"
 )
 
+# 相容既有 Django AI 排名頁
+RANKING_FILE = os.path.join(
+    OUTPUT_DIR,
+    "market_ranking.csv"
+)
 
 MODEL_FILE = os.path.join(
     MODEL_DIR,
@@ -887,123 +893,183 @@ def predict_latest(
     return current_df
 
 
+def save_prediction_history(result_df):
+    """
+    將當次完整前瞻預測結果保存至 MySQL。
+    同一天、同一檔股票、同一模型版本不重複新增。
+    """
+
+    if result_df.empty:
+        print("沒有預測結果，不保存歷史紀錄。")
+        return
+
+    saved_count = 0
+    skipped_count = 0
+
+    for _, row in result_df.iterrows():
+        prediction_date = pd.to_datetime(
+            row["prediction_date"]
+        ).date()
+
+        data_date = pd.to_datetime(
+            row["date"]
+        ).date()
+
+        symbol = str(row["symbol"]).strip().zfill(4)
+
+        model_version = str(
+            row.get("model_version", MODEL_VERSION)
+        )
+
+        _, created = PredictionHistory.objects.get_or_create(
+            prediction_date=prediction_date,
+            symbol=symbol,
+            model_version=model_version,
+            defaults={
+                "data_date": data_date,
+                "stock_name": str(row.get("stock_name", "")),
+                "close_price": round(float(row["close"]), 2),
+                "predicted_return_20": round(
+                    float(row["predicted_return_20"]) * 100,
+                    4
+                ),
+                "rank": int(row["rank"]),
+                "horizon": int(row.get("horizon", LOOK_FORWARD)),
+            }
+        )
+
+        if created:
+            saved_count += 1
+        else:
+            skipped_count += 1
+
+    print()
+    print("=" * 50)
+    print("歷史預測紀錄保存完成")
+    print(f"新增紀錄：{saved_count} 筆")
+    print(f"略過重複紀錄：{skipped_count} 筆")
+    print("=" * 50)
+
 # ============================================================
 # 儲存 Forward Prediction
 # ============================================================
 
-def save_prediction(
-    result_df
-):
 
-    # --------------------------------------------------------
-    # 選擇輸出欄位
-    # --------------------------------------------------------
+def save_prediction(result_df):
+
+    if result_df.empty:
+        print("沒有預測結果，不輸出 CSV。")
+        return
+
+    os.makedirs(
+        OUTPUT_DIR,
+        exist_ok=True
+    )
+
+    # =====================================================
+    # A. 完整前瞻預測檔
+    # =====================================================
 
     export_df = result_df[
         [
             "prediction_date",
-
             "symbol",
-
             "stock_name",
-
             "date",
-
             "close",
-
             "predicted_return_20",
-
             "rank",
-
             "model_version",
-
             "horizon",
-
         ]
     ].copy()
 
-    # --------------------------------------------------------
-    # 日期
-    # --------------------------------------------------------
-
-    export_df[
-        "prediction_date"
-    ] = pd.to_datetime(
-        export_df[
-            "prediction_date"
-        ]
-    ).dt.strftime(
-        "%Y-%m-%d"
+    export_df["prediction_date"] = (
+        pd.to_datetime(
+            export_df["prediction_date"]
+        ).dt.strftime("%Y-%m-%d")
     )
 
-    export_df[
-        "date"
-    ] = pd.to_datetime(
-        export_df[
-            "date"
-        ]
-    ).dt.strftime(
-        "%Y-%m-%d"
+    export_df["date"] = (
+        pd.to_datetime(
+            export_df["date"]
+        ).dt.strftime("%Y-%m-%d")
     )
-
-    # --------------------------------------------------------
-    # 命名
-    # --------------------------------------------------------
 
     export_df = export_df.rename(
         columns={
-            "date":
-                "data_date",
-
-            "close":
-                "close_price",
+            "date": "data_date",
+            "close": "close_price",
         }
     )
 
-    # --------------------------------------------------------
-    # 預測報酬轉百分比
-    #
-    # 例如：
-    # 0.0832
-    # →
-    # 8.32
-    # --------------------------------------------------------
-
-    export_df[
-        "predicted_return_20"
-    ] = (
-        export_df[
-            "predicted_return_20"
-        ]
-        * 100
+    export_df["symbol"] = (
+        export_df["symbol"]
+        .astype(str)
+        .str.strip()
+        .str.zfill(4)
     )
 
-    # --------------------------------------------------------
-    # 儲存
-    # --------------------------------------------------------
+    # 以百分比數值儲存，例如 3.5 代表 3.5%
+    export_df["predicted_return_20"] = (
+        export_df["predicted_return_20"] * 100
+    )
 
     export_df.to_csv(
         OUTPUT_FILE,
         index=False,
-        encoding="utf-8-sig"
+        encoding="utf-8-sig",
     )
+
+    # =====================================================
+    # B. 相容既有 Django 排名頁的檔案
+    # =====================================================
+
+    ranking_df = export_df[
+        [
+            "rank",
+            "symbol",
+            "data_date",
+            "close_price",
+            "predicted_return_20",
+        ]
+    ].copy()
+
+    ranking_df = ranking_df.rename(
+        columns={
+            "data_date": "date",
+            "close_price": "close",
+        }
+    )
+
+    ranking_df.to_csv(
+        RANKING_FILE,
+        index=False,
+        encoding="utf-8-sig",
+    )
+
+    # =====================================================
+    # C. 執行結果
+    # =====================================================
 
     print()
-    print("=" * 70)
-    print("Forward Prediction 輸出完成")
-    print("=" * 70)
+    print("=" * 60)
+    print("前瞻預測輸出完成")
+    print("=" * 60)
+
+    print(f"完整預測檔：{OUTPUT_FILE}")
+    print(f"網站排名檔：{RANKING_FILE}")
+    print(f"預測股票數：{len(export_df)}")
+
+    print()
+    print("Top 5：")
 
     print(
-        f"輸出檔案：{OUTPUT_FILE}"
+        ranking_df.head(TOP_N).to_string(
+            index=False
+        )
     )
 
-    print(
-        f"預測股票數：{len(export_df)}"
-    )
-
-    print(
-        f"Top-{TOP_N} 已建立"
-    )
 
 
 # ============================================================
@@ -1068,7 +1134,9 @@ def main():
     save_prediction(
         result_df
     )
-
+    
+    # 5. 保存資料庫歷史預測紀錄
+    save_prediction_history(result_df)
     # ========================================================
     # 完成
     # ========================================================

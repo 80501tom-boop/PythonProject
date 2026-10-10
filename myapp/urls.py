@@ -1,7 +1,7 @@
 from django.urls import path
 
 from . import views
-
+from .views import prediction_performance
 
 urlpatterns = [
 
@@ -37,5 +37,15 @@ urlpatterns = [
     "market-strategy/",
     views.market_strategy,
     name="market_strategy",
+    ),
+    path(
+    "prediction-history/",
+    views.prediction_history,
+    name="prediction_history"
+    ),
+    path(
+    "prediction-performance/",
+    prediction_performance,
+    name="prediction_performance",
     ),
 ]

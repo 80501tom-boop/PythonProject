@@ -1,0 +1,208 @@
+
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STOCK AI｜歷史預測</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 30px 20px;
+            font-family: "Microsoft JhengHei", sans-serif;
+            background: #f4f6fa;
+            color: #253047;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: auto;
+        }
+
+        .header {
+            margin-bottom: 24px;
+        }
+
+        .header h1 {
+            margin-bottom: 8px;
+            font-size: 28px;
+        }
+
+        .muted {
+            color: #718096;
+            font-size: 14px;
+        }
+
+        .panel {
+            background: white;
+            padding: 22px;
+            border-radius: 14px;
+            margin-bottom: 20px;
+            box-shadow: 0 3px 14px #1725540a;
+        }
+
+        select, button {
+            padding: 10px 14px;
+            border: 1px solid #d7deea;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        button {
+            background: #253b80;
+            color: white;
+            cursor: pointer;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            white-space: nowrap;
+        }
+
+        th, td {
+            padding: 13px 12px;
+            text-align: left;
+            border-bottom: 1px solid #edf0f5;
+        }
+
+        th {
+            background: #f7f9fc;
+            color: #596780;
+            font-size: 13px;
+        }
+
+        .rank {
+            font-weight: bold;
+        }
+
+        .positive {
+            color: #d9485f;
+            font-weight: bold;
+        }
+
+        .negative {
+            color: #16835d;
+            font-weight: bold;
+        }
+
+        .empty {
+            padding: 35px;
+            text-align: center;
+            color: #718096;
+        }
+
+        .back {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #253b80;
+            text-decoration: none;
+        }
+    </style>
+</head>
+
+<body>
+<div class="container">
+
+    <a class="back" href="{% url 'market_ranking' %}">
+        ← 返回 AI 股票排名
+    </a>
+
+    <div class="header">
+        <h1>STOCK AI 歷史預測</h1>
+        <div class="muted">
+            查詢每次前瞻預測結果，追蹤模型預測紀錄。
+        </div>
+    </div>
+
+    <div class="panel">
+        <form method="get">
+            <label for="date"><strong>預測日期：</strong></label>
+
+            <select name="date" id="date">
+                {% for d in prediction_dates %}
+                    <option value="{{ d|date:'Y-m-d' }}"
+                        {% if selected_date == d|date:'Y-m-d' %}
+                            selected
+                        {% endif %}>
+                        {{ d|date:'Y-m-d' }}
+                    </option>
+                {% endfor %}
+            </select>
+
+            <button type="submit">查詢</button>
+        </form>
+
+        <p class="muted">
+            顯示所選日期保存的預測結果。
+        </p>
+    </div>
+
+    <div class="panel">
+        <h2>預測排名</h2>
+
+        {% if history %}
+            <p class="muted">
+                共 {{ history|length }} 檔股票
+                ｜預測期間：20 個交易日
+            </p>
+
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>排名</th>
+                            <th>股票代號</th>
+                            <th>股票名稱</th>
+                            <th>資料日期</th>
+                            <th>預測收盤價</th>
+                            <th>預測報酬率</th>
+                            <th>模型版本</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for row in history %}
+                        <tr>
+                            <td class="rank">{{ row.rank }}</td>
+                            <td>{{ row.symbol }}</td>
+                            <td>{{ row.stock_name }}</td>
+                            <td>{{ row.data_date|date:'Y-m-d' }}</td>
+                            <td>{{ row.close_price|floatformat:2 }}</td>
+
+                            <td>
+                                <span class="{% if row.predicted_return_20 >= 0 %}positive{% else %}negative{% endif %}">
+                                    {{ row.predicted_return_20|floatformat:2 }}%
+                                </span>
+                            </td>
+
+                            <td>{{ row.model_version }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="empty">
+                目前沒有歷史預測紀錄。
+            </div>
+        {% endif %}
+    </div>
+
+    <p class="muted">
+        注意：預測報酬率是模型估計值，不代表實際收益。
+        本頁顯示的是歷史預測紀錄，尚未扣除交易成本。
+    </p>
+
+</div>
+</body>
+</html>

@@ -11,7 +11,7 @@ from django.conf import settings
 from django.core.paginator import Paginator
 from django.shortcuts import render, redirect
 
-from .models import Stock, StockPrice
+from .models import Stock, StockPrice, PredictionHistory
 
 from scripts.import_history import (
     import_stock,
@@ -19,9 +19,14 @@ from scripts.import_history import (
     update_all_stocks
 )
 
+# ============================================================
+# 首頁
+# ============================================================
+
 
 # ============================================================
 # 首頁
+# V6.1：整合最新前瞻預測 Top 5
 # ============================================================
 
 def index(request):
@@ -37,12 +42,9 @@ def index(request):
     ) != str(today):
 
         try:
-
             print()
             print("=" * 60)
-            print(
-                f"網站啟動：開始更新股票資料 {today}"
-            )
+            print(f"網站啟動：開始更新股票資料 {today}")
             print("=" * 60)
 
             update_all_stocks()
@@ -57,22 +59,15 @@ def index(request):
             print("=" * 60)
 
         except Exception as e:
-
-            print(
-                f"股票資料更新失敗：{e}"
-            )
+            print(f"股票資料更新失敗：{e}")
 
     # =====================================
-    # 股票搜尋
+    # 股票搜尋（保留原功能）
     # =====================================
 
-    query = request.GET.get(
-        "q",
-        ""
-    ).strip()
+    query = request.GET.get("q", "").strip()
 
     if query:
-
         stocks = (
             Stock.objects.filter(
                 symbol__icontains=query
@@ -82,14 +77,70 @@ def index(request):
                 name__icontains=query
             )
         )
-
     else:
-
         stocks = Stock.objects.all()
 
+    # =====================================
+    # V6.1：取得最新一批前瞻預測
+    # =====================================
+
+    latest_prediction_date = (
+        PredictionHistory.objects
+        .order_by("-prediction_date")
+        .values_list("prediction_date", flat=True)
+        .first()
+    )
+
+    latest_data_date = None
+    latest_predictions = []
+    latest_model_version = None
+
+    if latest_prediction_date:
+
+        prediction_queryset = (
+            PredictionHistory.objects
+            .filter(
+                prediction_date=latest_prediction_date
+            )
+            .order_by("rank")
+        )
+
+        # 取得預測所使用的最新資料日期
+        first_prediction = prediction_queryset.first()
+
+        if first_prediction:
+            latest_data_date = first_prediction.data_date
+            latest_model_version = first_prediction.model_version
+
+        # 首頁只顯示 Top 5
+        latest_predictions = list(
+            prediction_queryset[:5].values(
+                "prediction_date",
+                "data_date",
+                "symbol",
+                "stock_name",
+                "close_price",
+                "predicted_return_20",
+                "rank",
+                "horizon",
+                "model_version",
+            )
+        )
+
+    # =====================================
+    # 傳給首頁 HTML
+    # =====================================
+
     context = {
+        # 原有股票搜尋
         "stocks": stocks,
         "query": query,
+
+        # V6.1 最新預測
+        "latest_prediction_date": latest_prediction_date,
+        "latest_data_date": latest_data_date,
+        "latest_predictions": latest_predictions,
+        "latest_model_version": latest_model_version,
     }
 
     return render(
@@ -97,6 +148,7 @@ def index(request):
         "stocks/index.html",
         context
     )
+
 
 
 # ============================================================
@@ -685,6 +737,58 @@ def market_ranking(request):
         }
     )
 
+
+def prediction_history(request):
+    """顯示已保存的前瞻預測歷史紀錄"""
+
+    # 取得所有有預測紀錄的日期，最新日期優先
+    prediction_dates = list(
+        PredictionHistory.objects
+        .values_list("prediction_date", flat=True)
+        .distinct()
+        .order_by("-prediction_date")
+    )
+
+    # 預設顯示最新一次預測
+    selected_date = request.GET.get("date")
+
+    if prediction_dates:
+        valid_dates = {
+            d.isoformat() for d in prediction_dates
+        }
+
+        if selected_date not in valid_dates:
+            selected_date = prediction_dates[0].isoformat()
+
+        history = list(
+            PredictionHistory.objects
+            .filter(prediction_date=selected_date)
+            .order_by("rank")
+            .values(
+                "prediction_date",
+                "data_date",
+                "symbol",
+                "stock_name",
+                "close_price",
+                "predicted_return_20",
+                "rank",
+                "horizon",
+                "model_version",
+            )
+        )
+    else:
+        selected_date = None
+        history = []
+
+    return render(
+        request,
+        "stocks/prediction_history.html",
+        {
+            "prediction_dates": prediction_dates,
+            "selected_date": selected_date,
+            "history": history,
+        }
+    )
 
 # ============================================================
 # 市場回測
@@ -1530,4 +1634,120 @@ def market_strategy(request):
         request,
         "stocks/market_strategy.html",
         context
+    )
+
+
+def prediction_performance(request):
+    """
+    V6.2：前瞻預測績效儀表板
+    只統計已完成實際報酬評估的紀錄。
+    """
+    records = list(
+        PredictionHistory.objects
+        .filter(
+            evaluated_at__isnull=False,
+            actual_return_20__isnull=False,
+        )
+        .order_by("-prediction_date", "rank")
+    )
+
+    total_evaluated = len(records)
+
+    # 計算預測方向準確率與平均絕對誤差
+    valid_direction = [
+        row for row in records
+        if row.direction_correct is not None
+    ]
+
+    direction_accuracy = None
+    if valid_direction:
+        direction_accuracy = (
+            sum(bool(row.direction_correct) for row in valid_direction)
+            / len(valid_direction) * 100
+        )
+
+    errors = []
+    for row in records:
+        if (
+            row.predicted_return_20 is not None
+            and row.actual_return_20 is not None
+        ):
+            errors.append(
+                abs(
+                    float(row.predicted_return_20)
+                    - float(row.actual_return_20)
+                )
+            )
+
+    mae = sum(errors) / len(errors) if errors else None
+
+    # 等待評估的紀錄
+    pending_count = PredictionHistory.objects.filter(
+        evaluated_at__isnull=True
+    ).count()
+
+    # 依預測批次統計 Top 5 實際報酬
+    batch_dates = sorted(
+        {row.prediction_date for row in records},
+        reverse=True,
+    )
+
+    batch_performance = []
+
+    for batch_date in batch_dates:
+        batch_records = [
+            row for row in records
+            if row.prediction_date == batch_date
+        ]
+
+        top5 = sorted(
+            batch_records,
+            key=lambda row: (
+                row.rank if row.rank is not None else 999999
+            ),
+        )[:5]
+
+        if not top5:
+            continue
+
+        top5_returns = [
+            float(row.actual_return_20)
+            for row in top5
+            if row.actual_return_20 is not None
+        ]
+
+        all_returns = [
+            float(row.actual_return_20)
+            for row in batch_records
+            if row.actual_return_20 is not None
+        ]
+
+        batch_performance.append({
+            "prediction_date": batch_date,
+            "top5_count": len(top5_returns),
+            "top5_actual_avg": (
+                sum(top5_returns) / len(top5_returns)
+                if top5_returns else None
+            ),
+            "universe_actual_avg": (
+                sum(all_returns) / len(all_returns)
+                if all_returns else None
+            ),
+            "top5_stocks": top5,
+        })
+
+    context = {
+        "total_evaluated": total_evaluated,
+        "pending_count": pending_count,
+        "direction_count": len(valid_direction),
+        "direction_accuracy": direction_accuracy,
+        "mae": mae,
+        "batch_performance": batch_performance,
+        "recent_records": records[:30],
+    }
+
+    return render(
+        request,
+        "stocks/prediction_performance.html",
+        context,
     )

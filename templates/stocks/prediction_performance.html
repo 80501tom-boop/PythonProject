@@ -1,0 +1,400 @@
+
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STOCK AI｜預測績效</title>
+    <link rel="stylesheet" href="{% static 'stocks/style.css' %}">
+
+    <style>
+        /* 頁面標題：沿用首頁的簡潔風格 */
+        .performance-intro {
+            margin-bottom: 28px;
+        }
+
+        .performance-intro h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .performance-intro p {
+            color: #6b7280;
+            line-height: 1.7;
+        }
+
+        /* 績效摘要卡片 */
+        .performance-metrics {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 16px;
+            margin: 24px 0 32px;
+        }
+
+        .performance-card {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            min-width: 0;
+        }
+
+        .performance-card-label {
+            color: #6b7280;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+        .performance-card-value {
+            color: #111827;
+            font-size: 26px;
+            font-weight: 700;
+            overflow-wrap: anywhere;
+        }
+
+        .performance-card-note {
+            color: #9ca3af;
+            font-size: 12px;
+            margin-top: 8px;
+            line-height: 1.6;
+        }
+
+        /* 內容區塊 */
+        .performance-section {
+            margin-top: 32px;
+        }
+
+        .performance-section h2 {
+            font-size: 21px;
+            margin-bottom: 12px;
+        }
+
+        .performance-description {
+            color: #6b7280;
+            font-size: 14px;
+            line-height: 1.7;
+            margin-bottom: 16px;
+        }
+
+        /* 表格外觀 */
+        .performance-table-wrap {
+            width: 100%;
+            overflow-x: auto;
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+        }
+
+        .performance-table {
+            width: 100%;
+            min-width: 620px;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        .performance-table th {
+            background: #f9fafb;
+            color: #4b5563;
+            font-weight: 600;
+            text-align: left;
+            padding: 14px 16px;
+            white-space: nowrap;
+        }
+
+        .performance-table td {
+            padding: 14px 16px;
+            border-top: 1px solid #f0f0f0;
+            color: #374151;
+            white-space: nowrap;
+        }
+
+        .performance-table tbody tr:hover {
+            background: #fafafa;
+        }
+
+        .performance-empty {
+            text-align: center;
+            color: #9ca3af !important;
+            padding: 28px 16px !important;
+            white-space: normal !important;
+            line-height: 1.8;
+        }
+
+        .return-positive {
+            color: #15803d !important;
+            font-weight: 600;
+        }
+
+        .return-negative {
+            color: #dc2626 !important;
+            font-weight: 600;
+        }
+
+        .performance-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 28px;
+        }
+
+        .performance-links a {
+            display: inline-block;
+            padding: 10px 16px;
+            border-radius: 8px;
+            background: #111827;
+            color: #fff;
+            text-decoration: none;
+            font-size: 14px;
+            transition: opacity 0.2s;
+        }
+
+        .performance-links a:hover {
+            opacity: 0.82;
+        }
+
+        .performance-disclaimer {
+            color: #9ca3af;
+            font-size: 12px;
+            line-height: 1.8;
+            margin-top: 24px;
+        }
+
+        @media (max-width: 900px) {
+            .performance-metrics {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 500px) {
+            .performance-intro h1 {
+                font-size: 23px;
+            }
+
+            .performance-metrics {
+                gap: 10px;
+            }
+
+            .performance-card {
+                padding: 15px;
+            }
+
+            .performance-card-value {
+                font-size: 22px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<header class="navbar">
+    <div class="logo">STOCK AI</div>
+    <nav>
+        <a href="/">首頁</a>
+        <a href="{% url 'market_ranking' %}">AI 選股排名</a>
+        <a href="{% url 'prediction_history' %}">歷史預測</a>
+        <a href="{% url 'prediction_performance' %}">預測績效</a>
+    </nav>
+</header>
+
+<main class="container">
+
+    <!-- 頁面標題 -->
+    <section class="performance-intro">
+        <h1>AI 預測績效</h1>
+        <p>
+            評估模型對未來 20 個交易日報酬的預測結果，
+            追蹤預測方向、誤差與選股表現。
+        </p>
+    </section>
+
+    <!-- 績效摘要 -->
+    <section class="performance-metrics">
+
+        <div class="performance-card">
+            <div class="performance-card-label">已完成評估</div>
+            <div class="performance-card-value">
+                {{ total_evaluated }}
+            </div>
+            <div class="performance-card-note">筆已完成評估的預測</div>
+        </div>
+
+        <div class="performance-card">
+            <div class="performance-card-label">等待評估</div>
+            <div class="performance-card-value">
+                {{ pending_count }}
+            </div>
+            <div class="performance-card-note">尚未完成 20 個交易日評估</div>
+        </div>
+
+        <div class="performance-card">
+            <div class="performance-card-label">方向準確率</div>
+            <div class="performance-card-value">
+                {% if direction_accuracy != None %}
+                    {{ direction_accuracy|floatformat:2 }}%
+                {% else %}
+                    —
+                {% endif %}
+            </div>
+            <div class="performance-card-note">
+                方向評估樣本 {{ direction_count }} 筆
+            </div>
+        </div>
+
+        <div class="performance-card">
+            <div class="performance-card-label">平均絕對誤差</div>
+            <div class="performance-card-value">
+                {% if mae != None %}
+                    {{ mae|floatformat:2 }}%
+                {% else %}
+                    —
+                {% endif %}
+            </div>
+            <div class="performance-card-note">
+                MAE 越低代表預測報酬誤差越小
+            </div>
+        </div>
+
+    </section>
+
+    <!-- Top 5 績效 -->
+    <section class="performance-section">
+        <h2>Top 5 選股績效</h2>
+        <p class="performance-description">
+            比較模型排名前五名股票的實際平均報酬與同批次已評估股票的平均報酬。
+        </p>
+
+        <div class="performance-table-wrap">
+            <table class="performance-table">
+                <thead>
+                    <tr>
+                        <th>預測日期</th>
+                        <th>Top 5 評估數</th>
+                        <th>Top 5 實際平均報酬</th>
+                        <th>全樣本平均報酬</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for batch in batch_performance %}
+                    <tr>
+                        <td>{{ batch.prediction_date|date:"Y-m-d" }}</td>
+                        <td>{{ batch.top5_count }}</td>
+
+                        <td>
+                            {% if batch.top5_actual_avg > 0 %}
+                                <span class="return-positive">
+                                    +{{ batch.top5_actual_avg|floatformat:2 }}%
+                                </span>
+                            {% elif batch.top5_actual_avg < 0 %}
+                                <span class="return-negative">
+                                    {{ batch.top5_actual_avg|floatformat:2 }}%
+                                </span>
+                            {% else %}
+                                {{ batch.top5_actual_avg|floatformat:2 }}%
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {% if batch.universe_actual_avg != None %}
+                                {{ batch.universe_actual_avg|floatformat:2 }}%
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="performance-empty">
+                            尚無完成評估的預測資料。<br>
+                            待累積未來 20 個交易日的資料後，系統將開始統計績效。
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- 預測明細 -->
+    <section class="performance-section">
+        <h2>近期預測評估紀錄</h2>
+        <p class="performance-description">
+            顯示最近已完成評估的預測，不包含尚未取得實際報酬的紀錄。
+        </p>
+
+        <div class="performance-table-wrap">
+            <table class="performance-table">
+                <thead>
+                    <tr>
+                        <th>預測日期</th>
+                        <th>股票</th>
+                        <th>排名</th>
+                        <th>預測報酬</th>
+                        <th>實際報酬</th>
+                        <th>方向判斷</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for item in recent_records %}
+                    <tr>
+                        <td>{{ item.prediction_date|date:"Y-m-d" }}</td>
+                        <td>{{ item.stock_name }}（{{ item.symbol }}）</td>
+                        <td>{{ item.rank }}</td>
+                        <td>{{ item.predicted_return_20|floatformat:2 }}%</td>
+
+                        <td>
+                            {% if item.actual_return_20 > 0 %}
+                                <span class="return-positive">
+                                    +{{ item.actual_return_20|floatformat:2 }}%
+                                </span>
+                            {% elif item.actual_return_20 < 0 %}
+                                <span class="return-negative">
+                                    {{ item.actual_return_20|floatformat:2 }}%
+                                </span>
+                            {% else %}
+                                {{ item.actual_return_20|floatformat:2 }}%
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {% if item.direction_correct == True %}
+                                <span class="return-positive">正確</span>
+                            {% elif item.direction_correct == False %}
+                                <span class="return-negative">錯誤</span>
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="performance-empty">
+                            目前尚無已完成評估的預測紀錄。
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- 頁面導覽 -->
+    <div class="performance-links">
+        <a href="/">返回首頁</a>
+        <a href="{% url 'market_ranking' %}">查看 AI 選股排名</a>
+        <a href="{% url 'prediction_history' %}">查看歷史預測</a>
+    </div>
+
+    <p class="performance-disclaimer">
+        注意：方向準確率與 MAE 僅根據已完成評估的紀錄計算。
+        全樣本平均報酬不等同於加權股價指數報酬；
+        歷史績效亦不代表未來投資結果。
+    </p>
+
+</main>
+
+</body>
+</html>
