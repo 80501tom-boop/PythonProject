@@ -34,18 +34,29 @@ urlpatterns = [
         name="market_backtest"
     ),
     path(
-    "market-strategy/",
-    views.market_strategy,
-    name="market_strategy",
+        "market-strategy/",
+        views.market_strategy,
+        name="market_strategy",
     ),
     path(
-    "prediction-history/",
-    views.prediction_history,
-    name="prediction_history"
+        "prediction-history/",
+        views.prediction_history,
+        name="prediction_history"
     ),
     path(
-    "prediction-performance/",
-    prediction_performance,
-    name="prediction_performance",
+        "prediction-performance/",
+        prediction_performance,
+        name="prediction_performance",
     ),
-]
+    path(
+        "run-forward-prediction/",
+        views.run_forward_prediction,
+        name="run_forward_prediction",
+    ),
+
+    path(
+        "run-forward-evaluation/",
+        views.run_forward_evaluation,
+        name="run_forward_evaluation",
+    ),
+    ]

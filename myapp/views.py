@@ -1,22 +1,27 @@
+
 import json
 import os
+import subprocess
+import sys
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
 import requests
 
-from datetime import datetime
-
 from django.conf import settings
+from django.contrib import messages
+from django.core.cache import cache
 from django.core.paginator import Paginator
 from django.shortcuts import render, redirect
+from django.views.decorators.http import require_POST
 
 from .models import Stock, StockPrice, PredictionHistory
 
 from scripts.import_history import (
     import_stock,
     update_stock,
-    update_all_stocks
+    update_all_stocks,
 )
 
 # ============================================================
@@ -1094,9 +1099,6 @@ def market_strategy(request):
     V5.7 不再使用累積報酬欄位。
     """
 
-    import os
-    import pandas as pd
-    from django.conf import settings
 
     output_dir = os.path.join(
         settings.BASE_DIR,
@@ -1735,7 +1737,11 @@ def prediction_performance(request):
             ),
             "top5_stocks": top5,
         })
-
+    # 最近 30 筆預測紀錄，包含尚未完成評估的資料
+    recent_records = list(
+        PredictionHistory.objects
+        .order_by("-prediction_date", "rank")[:30]
+    )
     context = {
         "total_evaluated": total_evaluated,
         "pending_count": pending_count,
@@ -1743,7 +1749,7 @@ def prediction_performance(request):
         "direction_accuracy": direction_accuracy,
         "mae": mae,
         "batch_performance": batch_performance,
-        "recent_records": records[:30],
+        "recent_records": recent_records,
     }
 
     return render(
@@ -1751,3 +1757,239 @@ def prediction_performance(request):
         "stocks/prediction_performance.html",
         context,
     )
+
+
+# ============================================================
+# V6.2：歷史預測頁面執行實驗程式
+# ============================================================
+
+
+def run_forward_prediction(request):
+    """執行前瞻預測，避免重複訓練。"""
+
+    MODEL_VERSION = "V5.7-FORWARD"
+    LOCK_KEY = "stock_ai_forward_prediction_running"
+
+    # 僅允許由頁面 POST 表單啟動
+    if request.method != "POST":
+        return redirect("prediction_history")
+
+    # 防止執行期間重複啟動
+    if not cache.add(LOCK_KEY, True, timeout=1800):
+        messages.warning(
+            request,
+            "前瞻預測正在執行中，請勿重複點擊。"
+        )
+        return redirect("prediction_history")
+
+    try:
+        # 取得目前資料庫最新的股價日期
+        latest_data_date = (
+            StockPrice.objects
+            .order_by("-date")
+            .values_list("date", flat=True)
+            .first()
+        )
+
+        if latest_data_date is None:
+            messages.error(
+                request,
+                "找不到股價資料，請先更新股票歷史資料。"
+            )
+            return redirect("prediction_history")
+
+        # 如果相同資料日期已有預測，就不再執行
+        already_predicted = PredictionHistory.objects.filter(
+            model_version=MODEL_VERSION,
+            data_date=latest_data_date
+        ).exists()
+
+        if already_predicted:
+            messages.warning(
+                request,
+                f"資料日期 {latest_data_date} 已有前瞻預測紀錄，"
+                "為避免重複訓練，本次未執行。"
+            )
+            return redirect("prediction_history")
+
+        # 執行預測程式
+        script_path = os.path.join(
+            settings.BASE_DIR,
+            "myapp",
+            "ml",
+            "forward_prediction.py"
+        )
+
+        result = subprocess.run(
+            [sys.executable, script_path],
+            cwd=str(settings.BASE_DIR),
+            capture_output=True,
+            text=True,
+            timeout=1800
+        )
+
+        if result.returncode != 0:
+            error_text = (result.stderr or result.stdout or "").strip()
+            messages.error(
+                request,
+                "前瞻預測執行失敗："
+                + (error_text[-800:] if error_text else "請檢查終端機錯誤訊息。")
+            )
+            return redirect("prediction_history")
+
+        # 確認資料庫是否真的寫入預測紀錄
+        saved_count = PredictionHistory.objects.filter(
+            model_version=MODEL_VERSION,
+            data_date=latest_data_date
+        ).count()
+
+        if saved_count > 0:
+            messages.success(
+                request,
+                f"前瞻預測完成！資料日期：{latest_data_date}，"
+                f"已確認 {saved_count} 筆預測紀錄。"
+            )
+        else:
+            messages.warning(
+                request,
+                "程式執行結束，但未找到對應日期的資料庫紀錄，"
+                "請檢查預測程式輸出。"
+            )
+
+    except subprocess.TimeoutExpired:
+        messages.error(
+            request,
+            "前瞻預測執行超過 30 分鐘，請檢查程式是否仍在運作。"
+        )
+
+    except Exception as e:
+        messages.error(
+            request,
+            f"前瞻預測發生錯誤：{e}"
+        )
+
+    finally:
+        # 無論成功或失敗，都解除執行鎖定
+        cache.delete(LOCK_KEY)
+
+    return redirect("prediction_history")
+
+
+
+
+def run_forward_evaluation(request):
+
+    MODEL_VERSION = "V5.7-FORWARD"
+    LOCK_KEY = "stock_ai_forward_evaluation_running"
+
+    if request.method != "POST":
+        return redirect("prediction_history")
+
+    # 防止重複點擊
+    if not cache.add(LOCK_KEY, True, timeout=1800):
+        messages.warning(
+            request,
+            "前瞻預測績效評估正在執行中，請勿重複點擊。"
+        )
+        return redirect("prediction_history")
+
+    try:
+        records = PredictionHistory.objects.filter(
+            model_version=MODEL_VERSION
+        )
+
+        # 執行前：統計尚未完成評估的紀錄
+        pending_before = records.filter(
+            evaluated_at__isnull=True
+        ).count()
+
+        evaluated_before = records.filter(
+            evaluated_at__isnull=False
+        ).count()
+
+        script_path = os.path.join(
+            settings.BASE_DIR,
+            "myapp",
+            "ml",
+            "evaluate_forward_predictions.py"
+        )
+
+        result = subprocess.run(
+            [sys.executable, script_path],
+            cwd=str(settings.BASE_DIR),
+            capture_output=True,
+            text=True,
+            timeout=1800
+        )
+
+        if result.returncode != 0:
+            error_text = (
+                result.stderr or result.stdout or ""
+            ).strip()
+
+            messages.error(
+                request,
+                "績效評估執行失敗：" +
+                (
+                    error_text[-800:]
+                    if error_text
+                    else "請檢查終端機錯誤訊息。"
+                )
+            )
+            return redirect("prediction_history")
+
+        # 執行後：重新統計資料庫紀錄
+        records = PredictionHistory.objects.filter(
+            model_version=MODEL_VERSION
+        )
+
+        evaluated_after = records.filter(
+            evaluated_at__isnull=False
+        ).count()
+
+        pending_after = records.filter(
+            evaluated_at__isnull=True
+        ).count()
+
+        newly_evaluated = max(
+            0, evaluated_after - evaluated_before
+        )
+
+        if newly_evaluated > 0:
+            messages.success(
+                request,
+                f"績效評估完成！本次新增評估 "
+                f"{newly_evaluated} 筆；"
+                f"尚未完成評估 {pending_after} 筆。"
+            )
+        elif pending_before == 0:
+            messages.info(
+                request,
+                "績效評估完成，目前沒有尚未完成評估的紀錄。"
+            )
+        else:
+            messages.info(
+                request,
+                f"評估程式已執行完畢，本次新增評估 0 筆；"
+                f"尚未完成評估 {pending_after} 筆。"
+                "這些紀錄可能尚未滿 20 個交易日，"
+                "或需檢查評估程式的執行條件。"
+            )
+
+    except subprocess.TimeoutExpired:
+        messages.error(
+            request,
+            "績效評估執行超過 30 分鐘，請檢查程式是否仍在運作。"
+        )
+
+    except Exception as e:
+        messages.error(
+            request,
+            f"績效評估發生錯誤：{e}"
+        )
+
+    finally:
+        cache.delete(LOCK_KEY)
+
+    return redirect("prediction_history")
+

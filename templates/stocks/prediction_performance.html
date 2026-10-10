@@ -262,7 +262,8 @@
     <section class="performance-section">
         <h2>Top 5 選股績效</h2>
         <p class="performance-description">
-            比較模型排名前五名股票的實際平均報酬與同批次已評估股票的平均報酬。
+            顯示最近的前瞻預測紀錄。尚未取得未來 20 個交易日實際報酬的資料，
+            將標示為「等待評估」，不會納入績效統計。
         </p>
 
         <div class="performance-table-wrap">
@@ -346,16 +347,20 @@
                         <td>{{ item.predicted_return_20|floatformat:2 }}%</td>
 
                         <td>
-                            {% if item.actual_return_20 > 0 %}
-                                <span class="return-positive">
-                                    +{{ item.actual_return_20|floatformat:2 }}%
-                                </span>
-                            {% elif item.actual_return_20 < 0 %}
-                                <span class="return-negative">
+                            {% if item.actual_return_20 != None %}
+                                {% if item.actual_return_20 > 0 %}
+                                    <span class="return-positive">
+                                        +{{ item.actual_return_20|floatformat:2 }}%
+                                    </span>
+                                {% elif item.actual_return_20 < 0 %}
+                                    <span class="return-negative">
+                                        {{ item.actual_return_20|floatformat:2 }}%
+                                    </span>
+                                {% else %}
                                     {{ item.actual_return_20|floatformat:2 }}%
-                                </span>
+                                {% endif %}
                             {% else %}
-                                {{ item.actual_return_20|floatformat:2 }}%
+                                <span style="color: #9ca3af;">等待評估</span>
                             {% endif %}
                         </td>
 

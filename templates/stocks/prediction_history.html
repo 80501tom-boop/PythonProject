@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
@@ -36,6 +35,7 @@
         .muted {
             color: #718096;
             font-size: 14px;
+            line-height: 1.8;
         }
 
         .panel {
@@ -46,7 +46,8 @@
             box-shadow: 0 3px 14px #1725540a;
         }
 
-        select, button {
+        select,
+        button {
             padding: 10px 14px;
             border: 1px solid #d7deea;
             border-radius: 8px;
@@ -59,6 +60,49 @@
             cursor: pointer;
         }
 
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .btn-evaluate {
+            background: #16835d;
+        }
+
+        .experiment-title {
+            margin-top: 0;
+            font-size: 20px;
+        }
+
+        .experiment-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin: 18px 0;
+        }
+
+        .experiment-actions form {
+            margin: 0;
+        }
+
+        .experiment-note {
+            padding: 12px 14px;
+            background: #f7f9fc;
+            border-radius: 8px;
+        }
+
+        .message {
+            padding: 12px 16px;
+            margin-bottom: 14px;
+            background: #e8f5ee;
+            border-radius: 8px;
+            color: #176943;
+        }
+
+        .message.error {
+            background: #fff0f0;
+            color: #b42318;
+        }
+
         .table-wrap {
             overflow-x: auto;
         }
@@ -69,7 +113,8 @@
             white-space: nowrap;
         }
 
-        th, td {
+        th,
+        td {
             padding: 13px 12px;
             text-align: left;
             border-bottom: 1px solid #edf0f5;
@@ -107,6 +152,25 @@
             color: #253b80;
             text-decoration: none;
         }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 20px 12px;
+            }
+
+            .panel {
+                padding: 16px;
+            }
+
+            .experiment-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .experiment-actions button {
+                width: 100%;
+            }
+        }
     </style>
 </head>
 
@@ -117,6 +181,7 @@
         ← 返回 AI 股票排名
     </a>
 
+    <!-- 頁面標題 -->
     <div class="header">
         <h1>STOCK AI 歷史預測</h1>
         <div class="muted">
@@ -124,6 +189,50 @@
         </div>
     </div>
 
+    <!-- 執行結果訊息 -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="message {% if message.tags == 'error' %}error{% endif %}">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- 實驗操作區 -->
+    <div class="panel">
+        <h2 class="experiment-title">前瞻預測實驗操作</h2>
+
+        <p class="muted">
+            執行最新市場預測，並評估過去已到期的預測結果。
+        </p>
+
+        <div class="experiment-actions">
+            <form method="post"
+                  action="{% url 'run_forward_prediction' %}">
+                {% csrf_token %}
+                <button type="submit">
+                    執行前瞻預測
+                </button>
+            </form>
+
+            <form method="post"
+                  action="{% url 'run_forward_evaluation' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn-evaluate">
+                    評估歷史預測績效
+                </button>
+            </form>
+        </div>
+
+        <div class="experiment-note muted">
+            <strong>操作說明</strong><br>
+            1. 確認股票歷史資料已更新，再執行前瞻預測。<br>
+            2. 評估程式會檢查已累積 20 個後續交易日的預測紀錄。<br>
+            3. 尚未到期的預測會繼續等待，不會立即產生實際報酬。
+        </div>
+    </div>
+
+    <!-- 預測日期查詢 -->
     <div class="panel">
         <form method="get">
             <label for="date"><strong>預測日期：</strong></label>
@@ -147,6 +256,7 @@
         </p>
     </div>
 
+    <!-- 預測排名表格 -->
     <div class="panel">
         <h2>預測排名</h2>
 

@@ -1,23 +1,45 @@
+
+# -*- coding: utf-8 -*-
+
+"""
+import_history.py
+
+功能：
+1. 支援上市股票（TWSE）與上櫃股票（TPEx）。
+2. 新股票匯入約一年的歷史資料。
+3. 已有股票只補抓資料庫最後日期之後的交易資料。
+4. 更新前先檢查市場最新交易日期，避免不必要的重抓。
+5. API 失敗、資料格式異常時，不再直接回報成功。
+6. 支援單一股票及全部股票更新。
+
+使用方式：
+    python scripts/import_history.py 2330
+    python scripts/import_history.py all
+    python scripts/import_history.py 6488
+"""
+
 import os
 import sys
-import django
+import time
+import calendar
+from datetime import date, datetime, timedelta
+
 import requests
 import pandas as pd
-import time
 
-from datetime import datetime, timedelta
-from dateutil.relativedelta import relativedelta
+import django
 
 
-# ============================================================
+# =========================================================
 # Django 設定
-# ============================================================
+# =========================================================
 
 BASE_DIR = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__))
 )
 
-sys.path.append(BASE_DIR)
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
 
 os.environ.setdefault(
     "DJANGO_SETTINGS_MODULE",
@@ -29,1287 +51,829 @@ django.setup()
 from myapp.models import Stock, StockPrice
 
 
-# ============================================================
+# =========================================================
 # API 設定
-# ============================================================
+# =========================================================
 
-# TWSE 集中市場
 TWSE_API_URL = (
-    "https://www.twse.com.tw/"
-    "exchangeReport/STOCK_DAY"
+    "https://www.twse.com.tw/exchangeReport/STOCK_DAY"
 )
 
-
-# ============================================================
-# Request 設定
-# ============================================================
+TPEX_API_URL = (
+    "https://www.tpex.org.tw/web/stock/aftertrading/"
+    "stock_day/trading_stock.php"
+)
 
 HEADERS = {
     "User-Agent": (
-        "Mozilla/5.0 "
-        "(Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 "
-        "(KHTML, like Gecko) "
-        "Chrome/154.0.0.0 Safari/537.36"
-    )
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 Chrome/130.0 Safari/537.36"
+    ),
+    "Referer": "https://www.twse.com.tw/",
 }
 
-REQUEST_TIMEOUT = 15
-
-# API 請求間隔
+REQUEST_TIMEOUT = 20
+REQUEST_RETRIES = 3
 REQUEST_DELAY = 0.3
 
 
-# ============================================================
-# HTTP Request
-# ============================================================
+# =========================================================
+# 自訂錯誤
+# =========================================================
 
-def request_get(url, params=None):
-
-    response = requests.get(
-        url,
-        params=params,
-        headers=HEADERS,
-        timeout=REQUEST_TIMEOUT
-    )
-
-    response.raise_for_status()
-
-    return response
+class MarketDataError(Exception):
+    """市場 API 連線、回傳內容或資料解析錯誤。"""
 
 
-# ============================================================
-# 民國日期 → 西元日期
-# ============================================================
+# =========================================================
+# 基礎資料處理
+# =========================================================
+
+def normalize_symbol(symbol):
+    """統一股票代號格式，保留前導零。"""
+    return str(symbol).strip().split(".")[0].zfill(4)
+
 
 def parse_tw_date(value):
+    """
+    將民國日期轉換成 datetime.date。
 
+    支援：
+        115/10/08
+        2026/10/08
+        2026-10-08
+    """
     if value is None:
         return None
 
     text = str(value).strip()
 
-    if text in [
-        "",
-        "nan",
-        "NaN",
-        "None",
-        "--",
-        "---"
-    ]:
+    if not text:
         return None
 
-    # --------------------------------------------------------
-    # 115/10/02
-    # --------------------------------------------------------
+    text = text.replace("-", "/")
 
-    if "/" in text:
-
+    try:
         parts = text.split("/")
 
-        if len(parts) == 3:
-
-            try:
-
-                year = int(parts[0])
-                month = int(parts[1])
-                day = int(parts[2])
-
-                if year < 1911:
-                    year += 1911
-
-                return datetime(
-                    year,
-                    month,
-                    day
-                ).date()
-
-            except Exception:
-
-                return None
-
-    # --------------------------------------------------------
-    # 1151002
-    # --------------------------------------------------------
-
-    if text.isdigit() and len(text) == 7:
-
-        try:
-
-            year = int(text[:3]) + 1911
-            month = int(text[3:5])
-            day = int(text[5:7])
-
-            return datetime(
-                year,
-                month,
-                day
-            ).date()
-
-        except Exception:
-
+        if len(parts) != 3:
             return None
 
-    # --------------------------------------------------------
-    # YYYY-MM-DD
-    # --------------------------------------------------------
+        year, month, day = map(int, parts)
 
-    try:
+        if year < 1911:
+            year += 1911
 
-        return datetime.strptime(
-            text,
-            "%Y-%m-%d"
-        ).date()
+        return date(year, month, day)
 
-    except Exception:
-        pass
+    except (ValueError, TypeError):
+        return None
 
-    # --------------------------------------------------------
-    # YYYY/MM/DD
-    # --------------------------------------------------------
-
-    try:
-
-        return datetime.strptime(
-            text,
-            "%Y/%m/%d"
-        ).date()
-
-    except Exception:
-        pass
-
-    return None
-
-
-# ============================================================
-# 數字清理
-# ============================================================
 
 def clean_number(value):
-
+    """將股價等數值欄位轉成 float。"""
     if value is None:
         return None
 
-    text = str(value).strip()
+    text = str(value).strip().replace(",", "")
 
-    text = text.replace(",", "")
-
-    if text in [
-        "",
-        "--",
-        "---",
-        "nan",
-        "NaN",
-        "None"
-    ]:
+    if text in ("", "--", "---", "-", "X", "除權", "除息"):
         return None
 
     try:
-
         return float(text)
-
-    except (
-        ValueError,
-        TypeError
-    ):
-
+    except (ValueError, TypeError):
         return None
 
-
-# ============================================================
-# 成交量清理
-# ============================================================
 
 def clean_volume(value):
+    """將成交量轉成整數股數。"""
+    number = clean_number(value)
 
-    if value is None:
-        return None
+    if number is None:
+        return 0
 
-    text = str(value).strip()
-
-    text = text.replace(",", "")
-
-    if text in [
-        "",
-        "--",
-        "---",
-        "nan",
-        "NaN",
-        "None"
-    ]:
-        return None
-
-    try:
-
-        return int(
-            float(text)
-        )
-
-    except (
-        ValueError,
-        TypeError
-    ):
-
-        return None
+    return int(number)
 
 
-# ============================================================
-# TWSE：取得指定月份資料
-# ============================================================
+def month_start(value):
+    """取得日期所在月份的第一天。"""
+    return date(value.year, value.month, 1)
 
-def get_twse_month_data(
-    stock_code,
-    date
-):
 
-    date_str = date.strftime(
-        "%Y%m%d"
+def shift_month(value, offset):
+    """以月份為單位移動日期。"""
+    index = value.year * 12 + value.month - 1 + offset
+
+    year = index // 12
+    month = index % 12 + 1
+
+    return date(year, month, 1)
+
+
+def month_strings(start_date, end_date):
+    """列出起訖日期涵蓋的月份。"""
+    current = month_start(start_date)
+    end_month = month_start(end_date)
+
+    while current <= end_month:
+        yield current.strftime("%Y%m")
+        current = shift_month(current, 1)
+
+
+def month_date_string(yyyymm):
+    """將 YYYYMM 轉成 YYYYMM01，供 TWSE API 使用。"""
+    return f"{yyyymm}01"
+
+
+def month_roc_string(yyyymm):
+    """將 YYYYMM 轉成 TPEx 使用的民國年/月格式。"""
+    year = int(yyyymm[:4]) - 1911
+    month = int(yyyymm[4:6])
+
+    return f"{year}/{month:02d}"
+
+
+# =========================================================
+# HTTP 請求
+# =========================================================
+
+def request_json(url, params):
+    """
+    發送 API 請求。
+
+    HTTP 錯誤、連線錯誤、非 JSON 回應都會明確拋出錯誤，
+    不會把 API 失敗當成成功。
+    """
+    last_error = None
+
+    for attempt in range(1, REQUEST_RETRIES + 1):
+        try:
+            response = requests.get(
+                url,
+                params=params,
+                headers=HEADERS,
+                timeout=REQUEST_TIMEOUT,
+            )
+
+            response.raise_for_status()
+
+            try:
+                result = response.json()
+            except ValueError as exc:
+                raise MarketDataError(
+                    f"API 回傳內容不是有效 JSON：{response.url}"
+                ) from exc
+
+            if not isinstance(result, (dict, list)):
+                raise MarketDataError(
+                    f"API 回傳格式不正確：{response.url}"
+                )
+
+            time.sleep(REQUEST_DELAY)
+
+            return result
+
+        except (
+            requests.RequestException,
+            MarketDataError,
+        ) as exc:
+            last_error = exc
+
+            print(
+                f"  API 請求失敗 "
+                f"({attempt}/{REQUEST_RETRIES})：{exc}"
+            )
+
+            if attempt < REQUEST_RETRIES:
+                time.sleep(attempt)
+
+    raise MarketDataError(
+        f"API 重試 {REQUEST_RETRIES} 次仍失敗：{last_error}"
     )
 
+
+# =========================================================
+# TWSE 上市股票
+# =========================================================
+
+def get_twse_month_data(stock_code, yyyymm):
+    """
+    取得 TWSE 單一上市股票的月資料。
+
+    回傳：
+        list[dict]
+
+    沒有交易資料時回傳空清單。
+    API 連線或格式錯誤時拋出 MarketDataError。
+    """
     params = {
-
         "response": "json",
-
-        "date": date_str,
-
-        "stockNo": stock_code
+        "date": month_date_string(yyyymm),
+        "stockNo": stock_code,
     }
 
-    response = request_get(
-        TWSE_API_URL,
-        params=params
-    )
+    result = request_json(TWSE_API_URL, params)
 
-    content_type = (
-        response.headers
-        .get(
-            "Content-Type",
-            ""
-        )
-        .lower()
-    )
+    if not isinstance(result, dict):
+        raise MarketDataError("TWSE 回傳格式不是 JSON 物件")
 
-    if "json" not in content_type:
+    status = str(result.get("stat", "")).strip()
 
-        print(
-            f"TWSE {stock_code} "
-            f"{date_str}: "
-            "API 非 JSON"
+    if status not in ("OK", "查詢資料不存在"):
+        raise MarketDataError(
+            f"TWSE 回傳異常：{status or '缺少 stat 欄位'}"
         )
 
-        return None
+    fields = result.get("fields", [])
+    rows = result.get("data", [])
 
-    data = response.json()
+    if status == "查詢資料不存在" or not rows:
+        return []
 
-    if data.get("stat") != "OK":
+    if not fields:
+        raise MarketDataError("TWSE 有資料但缺少 fields 欄位")
 
-        print(
-            f"TWSE {stock_code} "
-            f"{date.strftime('%Y-%m')}: "
-            f"{data.get('stat')}"
-        )
+    df = pd.DataFrame(rows, columns=fields)
 
-        return None
-
-    fields = data.get(
-        "fields",
-        []
-    )
-
-    records = data.get(
-        "data",
-        []
-    )
-
-    if not records:
-
-        return None
-
-    df = pd.DataFrame(
-        records,
-        columns=fields
-    )
-
-    return df
-
-
-# ============================================================
-# 取得交易日期
-# ============================================================
-
-def get_trade_date(row):
-
-    if "日期" not in row.index:
-
-        return None
-
-    return parse_tw_date(
-        row["日期"]
-    )
-
-
-# ============================================================
-# 取得 OHLC + Volume
-# ============================================================
-
-def get_ohlc(row):
-
-    result = {
-
-        "open_price": None,
-
-        "high_price": None,
-
-        "low_price": None,
-
-        "close_price": None,
-
-        "volume": None
+    column_map = {
+        "日期": "date",
+        "開盤價": "open",
+        "最高價": "high",
+        "最低價": "low",
+        "收盤價": "close",
+        "成交股數": "volume",
     }
 
-    # --------------------------------------------------------
-    # 開盤
-    # --------------------------------------------------------
+    missing = [
+        name for name in column_map
+        if name not in df.columns
+    ]
 
-    for column in [
-        "開盤價",
-        "開盤"
-    ]:
+    if missing:
+        raise MarketDataError(
+            f"TWSE 欄位不完整，缺少：{missing}"
+        )
 
-        if column in row.index:
+    df = df.rename(columns=column_map)
 
-            result["open_price"] = (
-                clean_number(
-                    row[column]
-                )
+    records = []
+
+    for _, row in df.iterrows():
+        trade_date = parse_tw_date(row["date"])
+
+        if trade_date is None:
+            continue
+
+        close_price = clean_number(row["close"])
+
+        if close_price is None or close_price <= 0:
+            continue
+
+        records.append({
+            "date": trade_date,
+            "open": clean_number(row["open"]),
+            "high": clean_number(row["high"]),
+            "low": clean_number(row["low"]),
+            "close": close_price,
+            "volume": clean_volume(row["volume"]),
+        })
+
+    return records
+
+
+# =========================================================
+# TPEx 上櫃股票
+# =========================================================
+
+def get_tpex_month_data(stock_code, yyyymm):
+    """
+    取得 TPEx 單一上櫃股票的月資料。
+
+    使用 TPEx 歷史個股行情 API。
+    回傳欄位統一成 date/open/high/low/close/volume。
+    """
+    params = {
+        "l": "zh-tw",
+        "d": month_roc_string(yyyymm),
+        "stkno": stock_code,
+    }
+
+    result = request_json(TPEX_API_URL, params)
+
+    if not isinstance(result, dict):
+        raise MarketDataError("TPEx 回傳格式不是 JSON 物件")
+
+    # TPEx 舊版 API 常見格式：
+    # tables[0]["fields"] / tables[0]["data"]
+    # 或直接使用 fields / data。
+    fields = result.get("fields", [])
+    rows = result.get("data", [])
+
+    if not fields and isinstance(result.get("tables"), list):
+        for table in result["tables"]:
+            if not isinstance(table, dict):
+                continue
+
+            table_fields = table.get("fields", [])
+            table_rows = table.get("data", [])
+
+            if table_fields and table_rows:
+                fields = table_fields
+                rows = table_rows
+                break
+
+    if not rows:
+        # 某些版本可能使用 stat 表示沒有資料。
+        status = str(result.get("stat", "")).strip()
+
+        if status and status not in (
+            "OK",
+            "查詢資料不存在",
+            "查無資料",
+        ):
+            raise MarketDataError(
+                f"TPEx 回傳異常：{status}"
             )
 
-            break
+        return []
 
-    # --------------------------------------------------------
-    # 最高
-    # --------------------------------------------------------
+    if not fields:
+        raise MarketDataError(
+            "TPEx 有資料但缺少 fields 欄位，請檢查 API 格式"
+        )
 
-    for column in [
-        "最高價",
-        "最高"
-    ]:
+    df = pd.DataFrame(rows, columns=fields)
 
-        if column in row.index:
+    # 兼容不同 API 版本可能出現的欄位名稱。
+    aliases = {
+        "日期": "date",
+        "交易日期": "date",
+        "開盤": "open",
+        "開盤價": "open",
+        "最高": "high",
+        "最高價": "high",
+        "最低": "low",
+        "最低價": "low",
+        "收盤": "close",
+        "收盤價": "close",
+        "成交股數": "volume",
+        "成交量": "volume",
+    }
 
-            result["high_price"] = (
-                clean_number(
-                    row[column]
-                )
-            )
+    df = df.rename(columns=aliases)
 
-            break
+    required = ["date", "open", "high", "low", "close", "volume"]
 
-    # --------------------------------------------------------
-    # 最低
-    # --------------------------------------------------------
+    missing = [
+        name for name in required
+        if name not in df.columns
+    ]
 
-    for column in [
-        "最低價",
-        "最低"
-    ]:
+    if missing:
+        raise MarketDataError(
+            f"TPEx 欄位不完整，缺少：{missing}；"
+            f"實際欄位：{list(df.columns)}"
+        )
 
-        if column in row.index:
+    records = []
 
-            result["low_price"] = (
-                clean_number(
-                    row[column]
-                )
-            )
+    for _, row in df.iterrows():
+        trade_date = parse_tw_date(row["date"])
 
-            break
+        if trade_date is None:
+            continue
 
-    # --------------------------------------------------------
-    # 收盤
-    # --------------------------------------------------------
+        close_price = clean_number(row["close"])
 
-    for column in [
-        "收盤價",
-        "收盤"
-    ]:
+        if close_price is None or close_price <= 0:
+            continue
 
-        if column in row.index:
+        records.append({
+            "date": trade_date,
+            "open": clean_number(row["open"]),
+            "high": clean_number(row["high"]),
+            "low": clean_number(row["low"]),
+            "close": close_price,
+            "volume": clean_volume(row["volume"]),
+        })
 
-            result["close_price"] = (
-                clean_number(
-                    row[column]
-                )
-            )
-
-            break
-
-    # --------------------------------------------------------
-    # 成交量
-    # --------------------------------------------------------
-
-    for column in [
-        "成交股數",
-        "成交量"
-    ]:
-
-        if column in row.index:
-
-            result["volume"] = (
-                clean_volume(
-                    row[column]
-                )
-            )
-
-            break
-
-    return result
+    return records
 
 
-# ============================================================
-# 儲存 StockPrice
-# ============================================================
+# =========================================================
+# 市場判斷與資料來源
+# =========================================================
 
-def save_stock_price(
-    stock,
-    trade_date,
-    row
-):
+def get_market(stock):
+    """
+    依 Stock.market 判斷市場。
 
-    if trade_date is None:
+    支援常見值：
+        TWSE、上市
+        TPEx、TPEX、OTC、上櫃
 
-        return False
+    若市場欄位沒有明確值，回傳 None，
+    由呼叫端嘗試上市與上櫃 API。
+    """
+    market = str(
+        getattr(stock, "market", "") or ""
+    ).strip().upper()
 
-    ohlc = get_ohlc(
-        row
-    )
+    if market in ("TWSE", "上市"):
+        return "TWSE"
 
-    # --------------------------------------------------------
-    # OHLC 不完整，不儲存
-    # --------------------------------------------------------
+    if market in ("TPEX", "TPEX", "OTC", "上櫃"):
+        return "TPEx"
 
-    if None in [
+    return None
 
-        ohlc["open_price"],
 
-        ohlc["high_price"],
+def get_month_data(stock, yyyymm):
+    """
+    依股票市場取得月資料。
 
-        ohlc["low_price"],
+    如果市場未設定，先嘗試 TWSE，再嘗試 TPEx。
+    只有成功取得資料或確認沒有資料才回傳。
+    若兩邊 API 都失敗，拋出錯誤。
+    """
+    market = get_market(stock)
 
-        ohlc["close_price"]
-    ]:
+    if market == "TWSE":
+        return get_twse_month_data(stock.symbol, yyyymm)
 
-        return False
+    if market == "TPEx":
+        return get_tpex_month_data(stock.symbol, yyyymm)
 
-    volume = (
-        ohlc["volume"]
-    )
+    errors = []
 
-    if volume is None:
+    for market_name, fetcher in (
+        ("TWSE", get_twse_month_data),
+        ("TPEx", get_tpex_month_data),
+    ):
+        try:
+            records = fetcher(stock.symbol, yyyymm)
 
-        volume = 0
+            if records:
+                # 找到資料後，更新股票市場欄位。
+                if hasattr(stock, "market"):
+                    stock.market = market_name
+                    stock.save(update_fields=["market"])
 
-    # --------------------------------------------------------
-    # 更新 / 建立
-    # --------------------------------------------------------
+                return records
 
+        except MarketDataError as exc:
+            errors.append(f"{market_name}: {exc}")
+
+    if errors:
+        raise MarketDataError(
+            "無法確認股票市場或取得資料；" + "；".join(errors)
+        )
+
+    return []
+
+
+# =========================================================
+# 儲存資料
+# =========================================================
+
+def save_stock_price(stock, record):
+    """
+    新增或更新單日股價。
+
+    若同一股票、同一日期已存在，更新原資料，
+    避免產生重複紀錄。
+    """
     StockPrice.objects.update_or_create(
-
         stock=stock,
-
-        date=trade_date,
-
+        date=record["date"],
         defaults={
-
-            "open_price":
-                ohlc[
-                    "open_price"
-                ],
-
-            "high_price":
-                ohlc[
-                    "high_price"
-                ],
-
-            "low_price":
-                ohlc[
-                    "low_price"
-                ],
-
-            "close_price":
-                ohlc[
-                    "close_price"
-                ],
-
-            "volume":
-                volume
-        }
+            "open": record["open"],
+            "high": record["high"],
+            "low": record["low"],
+            "close": record["close"],
+            "volume": record["volume"],
+        },
     )
 
-    return True
 
+def save_records(stock, records, after_date=None):
+    """
+    儲存行情紀錄。
 
-# ============================================================
-# DB 最新資料日期
-# ============================================================
+    after_date 不為 None 時，只儲存該日期之後的資料。
+    回傳實際新增或更新的筆數。
+    """
+    saved_count = 0
+
+    for record in records:
+        trade_date = record["date"]
+
+        if after_date is not None and trade_date <= after_date:
+            continue
+
+        if trade_date > date.today():
+            continue
+
+        save_stock_price(stock, record)
+        saved_count += 1
+
+    return saved_count
+
 
 def get_last_date(stock):
-
-    last_record = (
-
+    """取得資料庫中該股票最後一筆交易日期。"""
+    latest = (
         StockPrice.objects
-
-        .filter(
-            stock=stock
-        )
-
-        .order_by(
-            "-date"
-        )
-
+        .filter(stock=stock)
+        .order_by("-date")
+        .values_list("date", flat=True)
         .first()
     )
 
-    if last_record is None:
-
-        return None
-
-    return last_record.date
+    return latest
 
 
-# ============================================================
-# 取得指定月份最後交易日
-# ============================================================
+# =========================================================
+# 查詢市場最新日期
+# =========================================================
 
-def get_month_last_trade_date(
-    stock_code,
-    date
-):
+def get_latest_market_date(stock, lookback_months=3):
+    """
+    往回查詢最近幾個月份，取得 API 中最新的交易日期。
 
-    try:
+    不直接使用今天日期，避免週末、休市日被當成交易日。
+    API 若持續失敗，會拋出 MarketDataError。
+    """
+    today = date.today()
+    errors = []
 
-        df = get_twse_month_data(
-            stock_code,
-            date
-        )
+    for offset in range(lookback_months):
+        target_month = shift_month(
+            month_start(today),
+            -offset,
+        ).strftime("%Y%m")
 
-    except Exception as e:
+        try:
+            records = get_month_data(stock, target_month)
 
-        print(
-            f"查詢市場日期失敗：{e}"
-        )
+            valid_dates = [
+                item["date"]
+                for item in records
+                if item["date"] <= today
+            ]
 
-        return None
+            if valid_dates:
+                return max(valid_dates)
 
-    if df is None:
-        return None
-
-    if df.empty:
-        return None
-
-    dates = []
-
-    for _, row in df.iterrows():
-
-        trade_date = (
-            get_trade_date(
-                row
-            )
-        )
-
-        if trade_date is not None:
-
-            dates.append(
-                trade_date
+        except MarketDataError as exc:
+            errors.append(
+                f"{target_month}: {exc}"
             )
 
-    if not dates:
-
-        return None
-
-    return max(dates)
-
-
-# ============================================================
-# 取得市場最新交易日
-#
-# 從本月開始往前找
-# 最多查 3 個月
-#
-# 通常只需要 1 次 API
-# ============================================================
-
-def get_latest_market_date(
-    stock_code
-):
-
-    today = datetime.today()
-
-    current_month = today.replace(
-        day=1
-    )
-
-    for month_offset in range(
-        0,
-        3
-    ):
-
-        check_month = (
-            current_month
-            - relativedelta(
-                months=month_offset
-            )
-        )
-
-        print(
-            f"檢查最新交易日："
-            f"{check_month.strftime('%Y-%m')}"
-        )
-
-        trade_date = (
-            get_month_last_trade_date(
-                stock_code,
-                check_month
-            )
-        )
-
-        if trade_date is not None:
-
-            # 不允許未來日期
-            if trade_date <= today.date():
-
-                return trade_date
-
-        time.sleep(
-            REQUEST_DELAY
+    if errors:
+        raise MarketDataError(
+            "查詢市場最新交易日期失敗；" + "；".join(errors)
         )
 
     return None
 
 
-# ============================================================
-# 匯入近一年資料
-#
-# 用於：
-# DB 完全沒有資料
-# ============================================================
+# =========================================================
+# 匯入約一年歷史資料
+# =========================================================
 
-def import_stock(
-    stock_code
-):
+def import_stock(stock_code, months=12):
+    """
+    匯入指定股票約一年的歷史資料。
 
-    stock_code = str(
-        stock_code
-    ).strip()
+    若股票尚未存在於 Stock，會先建立基本紀錄。
+    股票名稱或市場若沒有可靠資料，不會自行猜測名稱。
+    """
+    stock_code = normalize_symbol(stock_code)
 
-    print()
-    print("=" * 70)
-    print(
-        f"開始匯入近一年資料："
-        f"{stock_code}"
-    )
-    print("=" * 70)
+    print("\n" + "=" * 60)
+    print(f"開始匯入股票：{stock_code}")
+    print("=" * 60)
 
-    # --------------------------------------------------------
-    # 找 Stock
-    # --------------------------------------------------------
-
-    stock = (
-        Stock.objects
-        .filter(
-            symbol=stock_code
-        )
-        .first()
-    )
+    stock = Stock.objects.filter(symbol=stock_code).first()
 
     if stock is None:
-
         print(
-            f"找不到 Stock："
-            f"{stock_code}"
+            "錯誤：資料庫尚無此股票的基本資料。"
+            "請先在網站新增股票，或建立 Stock 紀錄後再匯入。"
         )
-
         return False
 
-    print(
-        f"股票："
-        f"{stock.symbol} "
-        f"{stock.name}"
-    )
+    today = date.today()
+    start_date = shift_month(month_start(today), -(months - 1))
+    start_date = date(start_date.year, start_date.month, 1)
 
-    today = datetime.today()
+    total_saved = 0
+    failed_months = []
 
-    # --------------------------------------------------------
-    # 從 11 個月前的月初開始
-    #
-    # 例如：
-    # 2026/10
-    # → 2025/11 ~ 2026/10
-    # --------------------------------------------------------
-
-    start_month = (
-        today
-        - relativedelta(
-            months=11
-        )
-    ).replace(
-        day=1
-    )
-
-    current_month = (
-        start_month
-    )
-
-    total = 0
-
-    month_count = 0
-
-    # --------------------------------------------------------
-    # 逐月取得
-    # --------------------------------------------------------
-
-    while current_month <= today:
-
-        month_count += 1
-
-        print(
-            f"[{month_count:02d}] "
-            f"取得 "
-            f"{current_month.strftime('%Y-%m')}..."
-        )
+    for yyyymm in month_strings(start_date, today):
+        print(f"\n取得 {yyyymm} 行情...")
 
         try:
+            records = get_month_data(stock, yyyymm)
 
-            df = get_twse_month_data(
-                stock_code,
-                current_month
-            )
-
-        except Exception as e:
+            count = save_records(stock, records)
+            total_saved += count
 
             print(
-                f"    API 失敗：{e}"
+                f"  本月取得 {len(records)} 筆，"
+                f"新增／更新 {count} 筆"
             )
 
-            current_month += (
-                relativedelta(
-                    months=1
-                )
-            )
+        except MarketDataError as exc:
+            failed_months.append(yyyymm)
+            print(f"  匯入失敗：{exc}")
 
-            continue
+    latest_date = get_last_date(stock)
 
-        if df is None:
-
-            print(
-                "    無資料"
-            )
-
-        else:
-
-            saved_count = 0
-
-            for _, row in df.iterrows():
-
-                try:
-
-                    trade_date = (
-                        get_trade_date(
-                            row
-                        )
-                    )
-
-                    if trade_date is None:
-                        continue
-
-                    if trade_date > today.date():
-                        continue
-
-                    if save_stock_price(
-                        stock,
-                        trade_date,
-                        row
-                    ):
-
-                        total += 1
-                        saved_count += 1
-
-                except Exception as e:
-
-                    print(
-                        f"    資料處理錯誤："
-                        f"{e}"
-                    )
-
-            print(
-                f"    API："
-                f"{len(df)} 筆"
-                f" / 寫入："
-                f"{saved_count} 筆"
-            )
-
-        # ----------------------------------------------------
-        # API 間隔
-        # ----------------------------------------------------
-
-        time.sleep(
-            REQUEST_DELAY
+    if failed_months:
+        print(
+            f"\n匯入未完全成功：{stock_code}"
+            f"；成功儲存 {total_saved} 筆"
+            f"；失敗月份：{', '.join(failed_months)}"
         )
+        return False
 
-        current_month += (
-            relativedelta(
-                months=1
-            )
-        )
+    if latest_date is None:
+        print(f"\n匯入失敗：{stock_code} 沒有可用行情資料")
+        return False
 
-    print()
-    print(
-        f"{stock_code} 歷史資料匯入完成"
-    )
-    print(
-        f"共寫入：{total} 筆"
-    )
+    print(f"\n匯入完成：{stock_code}")
+    print(f"新增／更新筆數：{total_saved}")
+    print(f"資料庫最新日期：{latest_date}")
 
     return True
 
 
-# ============================================================
-# 增量更新
-#
-# 已有資料：
-# 只抓 DB 最後日期之後的月份
-# ============================================================
+# =========================================================
+# 更新單一股票
+# =========================================================
 
-def update_stock(
-    stock_code
-):
+def update_stock(stock_code):
+    """
+    增量更新單一股票。
 
-    stock_code = str(
-        stock_code
-    ).strip()
+    1. 查詢資料庫最後日期。
+    2. 查詢市場最新交易日期。
+    3. 若資料已最新，不重抓歷史資料。
+    4. 否則從最後日期所在月份開始補抓。
+    5. 只儲存資料庫最後日期之後的交易資料。
+    """
+    stock_code = normalize_symbol(stock_code)
 
-    print()
-    print("=" * 70)
-    print(
-        f"開始更新："
-        f"{stock_code}"
-    )
-    print("=" * 70)
+    print("\n" + "=" * 60)
+    print(f"更新股票：{stock_code}")
+    print("=" * 60)
 
-    # --------------------------------------------------------
-    # 找 Stock
-    # --------------------------------------------------------
-
-    stock = (
-        Stock.objects
-        .filter(
-            symbol=stock_code
-        )
-        .first()
-    )
+    stock = Stock.objects.filter(symbol=stock_code).first()
 
     if stock is None:
-
-        print(
-            f"找不到 Stock："
-            f"{stock_code}"
-        )
-
+        print(f"錯誤：找不到股票 {stock_code} 的基本資料")
         return False
 
-    print(
-        f"股票："
-        f"{stock.symbol} "
-        f"{stock.name}"
-    )
-
-    # --------------------------------------------------------
-    # 查 DB 最後日期
-    # --------------------------------------------------------
-
-    last_date = get_last_date(
-        stock
-    )
-
-    # --------------------------------------------------------
-    # 完全沒有資料
-    # --------------------------------------------------------
+    last_date = get_last_date(stock)
 
     if last_date is None:
+        print("資料庫沒有歷史行情，改為匯入約一年資料")
+        return import_stock(stock_code)
 
-        print(
-            "目前沒有歷史資料"
-        )
+    try:
+        latest_market_date = get_latest_market_date(stock)
 
-        return import_stock(
-            stock_code
-        )
-
-    print(
-        f"DB 最後交易日："
-        f"{last_date}"
-    )
-
-    # --------------------------------------------------------
-    # 查市場最新交易日
-    # --------------------------------------------------------
-
-    latest_market_date = (
-        get_latest_market_date(
-            stock_code
-        )
-    )
-
-    if latest_market_date is None:
-
-        print(
-            "無法取得市場最新交易日"
-        )
-
+    except MarketDataError as exc:
+        print(f"更新失敗：無法確認市場最新日期：{exc}")
         return False
 
-    print(
-        f"市場最新交易日："
-        f"{latest_market_date}"
-    )
+    if latest_market_date is None:
+        print("更新失敗：API 沒有提供可確認的最新交易日期")
+        return False
 
-    # --------------------------------------------------------
-    # 已經最新
-    # --------------------------------------------------------
+    print(f"資料庫最後日期：{last_date}")
+    print(f"市場最新交易日期：{latest_market_date}")
 
     if last_date >= latest_market_date:
-
-        print()
-        print(
-            "✓ 資料已經是最新交易日"
-        )
-        print(
-            "✓ 不需要重新抓取"
-        )
-
+        print("資料已是最新，無須重新抓取")
         return True
 
-    # --------------------------------------------------------
-    # 開始增量更新
-    # --------------------------------------------------------
+    total_saved = 0
+    failed_months = []
 
-    print()
-    print(
-        "發現缺少資料"
-    )
-
-    start_date = (
-        last_date
-        + timedelta(
-            days=1
-        )
-    )
-
-    today = (
-        datetime.today().date()
-    )
-
-    # --------------------------------------------------------
-    # 從最後日期所在月份開始
-    #
-    # 例如：
-    # DB 最後 = 2026-09-30
-    #
-    # 會先抓：
-    # 2026-09
-    #
-    # 再抓：
-    # 2026-10
-    #
-    # 但只寫入 > last_date 的資料
-    # --------------------------------------------------------
-
-    current_month = (
-        start_date
-        .replace(
-            day=1
-        )
-    )
-
-    end_month = (
-        today
-        .replace(
-            day=1
-        )
-    )
-
-    total = 0
-    month_count = 0
-
-    # --------------------------------------------------------
-    # 逐月抓取
-    # --------------------------------------------------------
-
-    while current_month <= end_month:
-
-        month_count += 1
-
-        print(
-            f"[{month_count:02d}] "
-            f"取得 "
-            f"{current_month.strftime('%Y-%m')}..."
-        )
+    # 從資料庫最後日期所在月份開始，
+    # 確保同月後續交易日可以被補進來。
+    for yyyymm in month_strings(last_date, latest_market_date):
+        print(f"\n更新 {yyyymm} 行情...")
 
         try:
+            records = get_month_data(stock, yyyymm)
 
-            df = get_twse_month_data(
-                stock_code,
-                current_month
+            count = save_records(
+                stock,
+                records,
+                after_date=last_date,
             )
 
-        except Exception as e:
+            total_saved += count
 
             print(
-                f"    API 失敗：{e}"
+                f"  API 回傳 {len(records)} 筆，"
+                f"新增／更新 {count} 筆"
             )
 
-            current_month += (
-                relativedelta(
-                    months=1
-                )
-            )
+        except MarketDataError as exc:
+            failed_months.append(yyyymm)
+            print(f"  更新失敗：{exc}")
 
-            continue
+    new_last_date = get_last_date(stock)
 
-        if df is None:
-
-            print(
-                "    無資料"
-            )
-
-        else:
-
-            saved_count = 0
-
-            for _, row in df.iterrows():
-
-                try:
-
-                    trade_date = (
-                        get_trade_date(
-                            row
-                        )
-                    )
-
-                    if trade_date is None:
-                        continue
-
-                    # 不抓舊資料
-                    if trade_date <= last_date:
-                        continue
-
-                    # 不抓未來資料
-                    if trade_date > today:
-                        continue
-
-                    # 儲存
-                    if save_stock_price(
-                        stock,
-                        trade_date,
-                        row
-                    ):
-
-                        total += 1
-                        saved_count += 1
-
-                        print(
-                            f"    新增："
-                            f"{trade_date}"
-                        )
-
-                except Exception as e:
-
-                    print(
-                        f"    資料處理錯誤："
-                        f"{e}"
-                    )
-
-            print(
-                f"    新增："
-                f"{saved_count} 筆"
-            )
-
-        time.sleep(
-            REQUEST_DELAY
+    if failed_months:
+        print(
+            f"\n更新未完全成功：{stock_code}"
+            f"；已儲存 {total_saved} 筆"
+            f"；失敗月份：{', '.join(failed_months)}"
         )
+        return False
 
-        current_month += (
-            relativedelta(
-                months=1
-            )
+    if new_last_date is None or new_last_date < latest_market_date:
+        print(
+            "\n更新未完成：資料庫最新日期仍落後市場最新日期。"
         )
+        print(f"目前資料庫最新日期：{new_last_date}")
+        return False
 
-    print()
-    print(
-        f"{stock_code} 更新完成"
-    )
-    print(
-        f"本次新增："
-        f"{total} 筆"
-    )
+    print(f"\n更新完成：{stock_code}")
+    print(f"新增資料筆數：{total_saved}")
+    print(f"目前最新日期：{new_last_date}")
 
     return True
 
 
-# ============================================================
+# =========================================================
 # 更新全部股票
-# ============================================================
+# =========================================================
 
 def update_all_stocks():
+    """更新資料庫內全部股票，統計成功與失敗數量。"""
+    stocks = Stock.objects.all().order_by("symbol")
 
-    print()
-    print("=" * 70)
-    print(
-        "開始更新所有 TWSE 股票"
-    )
-    print("=" * 70)
-
-    stocks = (
-        Stock.objects
-        .all()
-        .order_by(
-            "symbol"
-        )
-    )
-
-    total_stocks = (
-        stocks.count()
-    )
-
-    print(
-        f"股票數量："
-        f"{total_stocks}"
-    )
-
-    print()
-
+    total = stocks.count()
     success_count = 0
     fail_count = 0
 
-    for index, stock in enumerate(
-        stocks,
-        start=1
-    ):
+    print("\n" + "=" * 60)
+    print(f"開始更新全部股票，共 {total} 檔")
+    print("=" * 60)
 
-        print()
-        print(
-            f"[{index}/{total_stocks}] "
-            f"{stock.symbol} "
-            f"{stock.name}"
-        )
+    for index, stock in enumerate(stocks, start=1):
+        print(f"\n[{index}/{total}] {stock.symbol}")
 
         try:
+            success = update_stock(stock.symbol)
 
-            result = update_stock(
-                stock.symbol
-            )
-
-            if result:
-
+            if success:
                 success_count += 1
-
             else:
-
                 fail_count += 1
 
-        except Exception as e:
-
+        except Exception as exc:
+            # 單一股票出錯，不中斷其他股票更新。
             fail_count += 1
-
             print(
-                f"{stock.symbol} "
-                f"更新失敗：{e}"
+                f"股票 {stock.symbol} 發生未預期錯誤：{exc}"
             )
 
-    print()
-    print("=" * 70)
-    print(
-        "所有股票更新完成"
-    )
-    print(
-        f"成功：{success_count}"
-    )
-    print(
-        f"失敗：{fail_count}"
-    )
-    print("=" * 70)
+    print("\n" + "=" * 60)
+    print("全部股票更新結束")
+    print(f"總數：{total}")
+    print(f"成功：{success_count}")
+    print(f"失敗：{fail_count}")
+    print("=" * 60)
+
+    return fail_count == 0
 
 
-# ============================================================
-# 主程式
-#
-# 使用方式：
-#
-# 1. 指定股票
-#    python scripts\import_history.py 2330
-#
-# 2. 更新全部股票
-#    python scripts\import_history.py all
-#
-# 3. 沒有參數
-#    預設更新 2330
-# ============================================================
+# =========================================================
+# 命令列入口
+# =========================================================
 
 if __name__ == "__main__":
-
-    print()
-    print("=" * 70)
-    print(
-        "STOCK AI"
-    )
-    print(
-        "TWSE 股票歷史資料更新系統"
-    )
-    print("=" * 70)
-
-    # --------------------------------------------------------
-    # 取得命令列參數
-    # --------------------------------------------------------
-
     if len(sys.argv) >= 2:
+        argument = sys.argv[1].strip()
+    else:
+        argument = "2330"
 
-        argument = (
-            sys.argv[1]
-            .strip()
-        )
+    if argument.lower() == "all":
+        success = update_all_stocks()
 
-        # ----------------------------------------------------
-        # 更新全部
-        # ----------------------------------------------------
-
-        if argument.lower() == "all":
-
-            update_all_stocks()
-
-        # ----------------------------------------------------
-        # 指定股票
-        # ----------------------------------------------------
-
-        else:
-
-            update_stock(
-                argument
-            )
+    elif len(sys.argv) >= 3 and sys.argv[2].lower() == "import":
+        success = import_stock(argument)
 
     else:
+        success = update_stock(argument)
 
-        # ----------------------------------------------------
-        # 預設股票
-        # ----------------------------------------------------
-
-        print()
-        print(
-            "未指定股票代號"
-        )
-
-        print(
-            "預設更新：2330"
-        )
-
-        update_stock(
-            "2330"
-        )
+    sys.exit(0 if success else 1)
