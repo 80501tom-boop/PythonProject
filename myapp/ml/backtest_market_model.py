@@ -286,13 +286,15 @@ def create_features(df):
     )
 
     # 未來 20 日實際報酬
-
     df["future_return_20"] = (
-        df["close"].shift(
-            -LOOK_FORWARD
-        )
+        df["close"].shift(-LOOK_FORWARD)
         / df["close"]
         - 1
+    )
+
+    # 記錄未來報酬所使用的終點日期
+    df["future_date_20"] = (
+        df["date"].shift(-LOOK_FORWARD)
     )
 
     return df
@@ -406,14 +408,17 @@ def run_single_backtest(
     # 訓練資料
     # -----------------------------------------------------
 
+    # 訓練樣本日期與未來報酬終點
+    # 都必須早於回測日期
     train_df = market_df[
-        market_df["date"] < backtest_date
+        (market_df["date"] < backtest_date)
+        & (market_df["future_date_20"] < backtest_date)
     ].copy()
 
     train_df = train_df.dropna(
         subset=
-        FEATURE_COLUMNS +
-        ["future_return_20"]
+        FEATURE_COLUMNS
+        + ["future_return_20", "future_date_20"]
     )
 
     train_df = train_df.sort_values(
