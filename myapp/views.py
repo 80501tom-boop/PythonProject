@@ -1825,7 +1825,8 @@ def run_forward_prediction(request):
             cwd=str(settings.BASE_DIR),
             capture_output=True,
             text=True,
-            timeout=1800
+            timeout=1800,
+            encoding='utf-8'
         )
 
         if result.returncode != 0:
@@ -1919,7 +1920,8 @@ def run_forward_evaluation(request):
             cwd=str(settings.BASE_DIR),
             capture_output=True,
             text=True,
-            timeout=1800
+            timeout=1800,
+            encoding='utf-8'
         )
 
         if result.returncode != 0:

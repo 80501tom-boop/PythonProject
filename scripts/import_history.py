@@ -548,10 +548,10 @@ def save_stock_price(stock, record):
         stock=stock,
         date=record["date"],
         defaults={
-            "open": record["open"],
-            "high": record["high"],
-            "low": record["low"],
-            "close": record["close"],
+            "open_price": record["open"],
+            "high_price": record["high"],
+            "low_price": record["low"],
+            "close_price": record["close"],
             "volume": record["volume"],
         },
     )

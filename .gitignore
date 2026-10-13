@@ -24,3 +24,7 @@ Thumbs.db
 __pycache__/
 *.pyc
 db.sqlite3
+
+myapp/ml/models/lightgbm_v5_7_forward.txt
+myapp/ml/output/forward_prediction.csv
+myapp/ml/output/market_ranking.csv
