@@ -1,7 +1,7 @@
 
 import json
 import os
-import subprocess
+import 
 import sys
 from datetime import datetime
 
@@ -1821,7 +1821,7 @@ def run_forward_prediction(request):
         )
 
 
-        result = subprocess.run(
+        result = .run(
             [sys.executable, script_path],
             cwd=str(settings.BASE_DIR),
             capture_output=True,
@@ -1863,7 +1863,7 @@ def run_forward_prediction(request):
                 "請檢查預測程式輸出。"
             )
 
-    except subprocess.TimeoutExpired:
+    except .TimeoutExpired:
         messages.error(
             request,
             "前瞻預測執行超過 30 分鐘，請檢查程式是否仍在運作。"
@@ -1922,7 +1922,7 @@ def run_forward_evaluation(request):
         )
 
 
-        result = subprocess.run(
+        result = .run(
             [sys.executable, script_path],
             cwd=str(settings.BASE_DIR),
             capture_output=True,
@@ -1990,7 +1990,7 @@ def run_forward_evaluation(request):
                 "或需檢查評估程式的執行條件。"
             )
 
-    except subprocess.TimeoutExpired:
+    except .TimeoutExpired:
         messages.error(
             request,
             "績效評估執行超過 30 分鐘，請檢查程式是否仍在運作。"
