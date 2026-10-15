@@ -1830,6 +1830,8 @@ def run_forward_prediction(request):
             errors="replace",
             env={**os.environ, "PYTHONUTF8": "1"},
             timeout=1800
+            timeout=1800,
+            encoding='utf-8'
         )
 
 
@@ -1929,6 +1931,8 @@ def run_forward_evaluation(request):
             errors="replace",
             env={**os.environ, "PYTHONUTF8": "1"},
             timeout=1800
+            timeout=1800,
+            encoding='utf-8'
         )
 
 
