@@ -1820,13 +1820,18 @@ def run_forward_prediction(request):
             "forward_prediction.py"
         )
 
+
         result = subprocess.run(
             [sys.executable, script_path],
             cwd=str(settings.BASE_DIR),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
+            env={**os.environ, "PYTHONUTF8": "1"},
             timeout=1800
         )
+
 
         if result.returncode != 0:
             error_text = (result.stderr or result.stdout or "").strip()
@@ -1914,13 +1919,18 @@ def run_forward_evaluation(request):
             "evaluate_forward_predictions.py"
         )
 
+
         result = subprocess.run(
             [sys.executable, script_path],
             cwd=str(settings.BASE_DIR),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
+            env={**os.environ, "PYTHONUTF8": "1"},
             timeout=1800
         )
+
 
         if result.returncode != 0:
             error_text = (
