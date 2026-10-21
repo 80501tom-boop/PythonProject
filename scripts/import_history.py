@@ -60,8 +60,8 @@ TWSE_API_URL = (
 )
 
 TPEX_API_URL = (
-    "https://www.tpex.org.tw/web/stock/aftertrading/"
-    "stock_day/trading_stock.php"
+    "https://www.tpex.org.tw/www/zh-tw/"
+    "afterTrading/tradingStock"
 )
 
 HEADERS = {
@@ -348,15 +348,23 @@ def get_twse_month_data(stock_code, yyyymm):
 
 def get_tpex_month_data(stock_code, yyyymm):
     """
-    取得 TPEx 單一上櫃股票的月資料。
+    取得 TPEx 單一上櫃股票的月行情。
 
-    使用 TPEx 歷史個股行情 API。
-    回傳欄位統一成 date/open/high/low/close/volume。
+    回傳 date/open/high/low/close/volume。
+    volume 由 API 的成交張數換算成股數；
+    精確程度仍受來源資料的顯示精度限制。
     """
+    import math
+    from decimal import Decimal, InvalidOperation
+
+    year = int(yyyymm[:4])
+    month = int(yyyymm[4:6])
+
     params = {
-        "l": "zh-tw",
-        "d": month_roc_string(yyyymm),
-        "stkno": stock_code,
+        "code": str(stock_code).strip(),
+        "date": f"{year}/{month:02d}/01",
+        "id": "",
+        "response": "json",
     }
 
     result = request_json(TPEX_API_URL, params)
@@ -364,102 +372,125 @@ def get_tpex_month_data(stock_code, yyyymm):
     if not isinstance(result, dict):
         raise MarketDataError("TPEx 回傳格式不是 JSON 物件")
 
-    # TPEx 舊版 API 常見格式：
-    # tables[0]["fields"] / tables[0]["data"]
-    # 或直接使用 fields / data。
-    fields = result.get("fields", [])
-    rows = result.get("data", [])
+    # 實測成功狀態為小寫 ok，統一轉為大寫判斷。
+    status = str(result.get("stat", "")).strip()
 
-    if not fields and isinstance(result.get("tables"), list):
-        for table in result["tables"]:
-            if not isinstance(table, dict):
-                continue
-
-            table_fields = table.get("fields", [])
-            table_rows = table.get("data", [])
-
-            if table_fields and table_rows:
-                fields = table_fields
-                rows = table_rows
-                break
-
-    if not rows:
-        # 某些版本可能使用 stat 表示沒有資料。
-        status = str(result.get("stat", "")).strip()
-
-        if status and status not in (
-            "OK",
-            "查詢資料不存在",
-            "查無資料",
-        ):
-            raise MarketDataError(
-                f"TPEx 回傳異常：{status}"
-            )
-
+    if status in ("查詢資料不存在", "查無資料"):
         return []
 
-    if not fields:
+    if status.upper() != "OK":
         raise MarketDataError(
-            "TPEx 有資料但缺少 fields 欄位，請檢查 API 格式"
+            f"TPEx 回傳異常：{status or '缺少 stat 欄位'}"
         )
 
-    df = pd.DataFrame(rows, columns=fields)
+    returned_code = str(result.get("code", "")).strip()
+    if returned_code != str(stock_code).strip():
+        raise MarketDataError(
+            f"TPEx 回傳代號不符："
+            f"要求 {stock_code}，收到 {returned_code!r}"
+        )
 
-    # 兼容不同 API 版本可能出現的欄位名稱。
-    aliases = {
-        "日期": "date",
-        "交易日期": "date",
-        "開盤": "open",
-        "開盤價": "open",
-        "最高": "high",
-        "最高價": "high",
-        "最低": "low",
-        "最低價": "low",
-        "收盤": "close",
-        "收盤價": "close",
-        "成交股數": "volume",
-        "成交量": "volume",
+    tables = result.get("tables")
+
+    if not isinstance(tables, list):
+        raise MarketDataError("TPEx 回傳缺少有效的 tables 清單")
+
+    # 依欄位找行情表，不假設行情永遠位於 tables[0]。
+    required_fields = {
+        "日 期", "成交張數", "開盤", "最高", "最低", "收盤"
     }
+    price_table = None
 
-    df = df.rename(columns=aliases)
+    for table in tables:
+        if not isinstance(table, dict):
+            continue
 
-    required = ["date", "open", "high", "low", "close", "volume"]
+        fields = table.get("fields")
 
-    missing = [
-        name for name in required
-        if name not in df.columns
-    ]
+        if (
+            isinstance(fields, list)
+            and all(isinstance(field, str) for field in fields)
+            and required_fields.issubset(fields)
+        ):
+            price_table = table
+            break
 
-    if missing:
+    if price_table is None:
         raise MarketDataError(
-            f"TPEx 欄位不完整，缺少：{missing}；"
-            f"實際欄位：{list(df.columns)}"
+            "TPEx 找不到預期的行情欄位，請檢查 API 回傳格式"
         )
+
+    fields = price_table["fields"]
+    rows = price_table.get("data")
+
+    if not isinstance(rows, list):
+        raise MarketDataError("TPEx 行情 data 不是清單")
 
     records = []
 
-    for _, row in df.iterrows():
-        trade_date = parse_tw_date(row["date"])
+    for index, values in enumerate(rows, start=1):
+        if not isinstance(values, list) or len(values) != len(fields):
+            raise MarketDataError(f"TPEx 第 {index} 列欄位數異常")
+
+        row = dict(zip(fields, values))
+        trade_date = parse_tw_date(row["日 期"])
 
         if trade_date is None:
+            raise MarketDataError(f"TPEx 第 {index} 列日期無法解析")
+
+        if (trade_date.year, trade_date.month) != (year, month):
+            raise MarketDataError(
+                f"TPEx 回傳日期 {trade_date} 不屬於要求月份 {yyyymm}"
+            )
+
+        prices = {
+            "open": clean_number(row["開盤"]),
+            "high": clean_number(row["最高"]),
+            "low": clean_number(row["最低"]),
+            "close": clean_number(row["收盤"]),
+        }
+
+        # 無成交等情況可能沒有有效價格，不寫入不完整 OHLC。
+        if any(
+            value is None or not math.isfinite(value) or value <= 0
+            for value in prices.values()
+        ):
             continue
 
-        close_price = clean_number(row["close"])
+        try:
+            volume_lots = Decimal(
+                str(row["成交張數"]).strip().replace(",", "")
+            )
 
-        if close_price is None or close_price <= 0:
-            continue
+            if not volume_lots.is_finite() or volume_lots < 0:
+                raise ValueError("成交張數不是有效的非負數")
+
+            # 先乘 1000，再轉整數，避免先截掉小數張數。
+            shares = volume_lots * 1000
+
+            if shares != shares.to_integral_value():
+                raise ValueError("換算後不是整數股數")
+
+            volume_shares = int(shares)
+
+        except (InvalidOperation, ValueError) as exc:
+            raise MarketDataError(
+                f"TPEx {trade_date} 成交張數異常："
+                f"{row['成交張數']!r}"
+            ) from exc
 
         records.append({
             "date": trade_date,
-            "open": clean_number(row["open"]),
-            "high": clean_number(row["high"]),
-            "low": clean_number(row["low"]),
-            "close": close_price,
-            "volume": clean_volume(row["volume"]),
+            **prices,
+            "volume": volume_shares,
         })
 
-    return records
+    if rows and not records:
+        raise MarketDataError(
+            "TPEx 有回傳資料，但沒有可用的完整行情"
+        )
 
+    return records
 
 # =========================================================
 # 市場判斷與資料來源
@@ -483,7 +514,7 @@ def get_market(stock):
     if market in ("TWSE", "上市"):
         return "TWSE"
 
-    if market in ("TPEX", "TPEX", "OTC", "上櫃"):
+    if market in ("TPEX", "OTC", "上櫃"):
         return "TPEx"
 
     return None

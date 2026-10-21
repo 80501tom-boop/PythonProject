@@ -173,25 +173,49 @@ def add_stock(request):
     if not symbol:
         return redirect("index")
 
+    # 統一代號格式（避免 6488.0 / 空白）
+    symbol = str(symbol).split(".")[0].zfill(4)
+
     # =====================================
-    # TWSE 最新股票資料
+    # 1) 先查 TWSE（上市）
     # =====================================
 
-    url = (
+    twse_url = (
         "https://openapi.twse.com.tw/"
         "v1/exchangeReport/STOCK_DAY_ALL"
     )
 
+    stock_data = None
+    market = None
+
     try:
 
         response = requests.get(
-            url,
+            twse_url,
             timeout=10
         )
 
         response.raise_for_status()
 
         data = response.json()
+
+        for item in data:
+
+            code = str(
+                item.get("Code", "")
+            ).strip().zfill(4)
+
+            if code == symbol:
+
+                stock_data = {
+                    "symbol": code,
+                    "name": str(
+                        item.get("Name", "")
+                    ).strip(),
+                }
+
+                market = "TWSE"
+                break
 
     except Exception as e:
 
@@ -200,21 +224,62 @@ def add_stock(request):
             e
         )
 
-        return redirect("index")
-
     # =====================================
-    # 找股票
+    # 2) TWSE 找不到再查 TPEx（上櫃）
     # =====================================
 
-    stock_data = None
+    if not stock_data:
 
-    for item in data:
+        tpex_url = (
+            "https://www.tpex.org.tw/openapi/v1/"
+            "tpex_mainboard_daily_close_quotes"
+        )
 
-        if item.get("Code") == symbol:
+        try:
 
-            stock_data = item
+            response = requests.get(
+                tpex_url,
+                timeout=10
+            )
 
-            break
+            response.raise_for_status()
+
+            data = response.json()
+
+            for item in data:
+
+                code = str(
+                    item.get(
+                        "SecuritiesCompanyCode",
+                        ""
+                    )
+                ).strip().zfill(4)
+
+                if code == symbol:
+
+                    stock_data = {
+                        "symbol": code,
+                        "name": str(
+                            item.get(
+                                "CompanyName",
+                                ""
+                            )
+                        ).strip(),
+                    }
+
+                    market = "TPEx"
+                    break
+
+        except Exception as e:
+
+            print(
+                "TPEx API 錯誤：",
+                e
+            )
+
+    # =====================================
+    # 3) 兩邊都找不到
+    # =====================================
 
     if not stock_data:
 
@@ -225,7 +290,7 @@ def add_stock(request):
         return redirect("index")
 
     # =====================================
-    # 建立 Stock
+    # 4) 建立 / 更新 Stock
     # =====================================
 
     stock, created = (
@@ -235,29 +300,38 @@ def add_stock(request):
 
             defaults={
                 "name": stock_data.get(
-                    "Name",
+                    "name",
                     ""
                 ),
-                "market": "TWSE",
+                "market": market,
             }
         )
     )
 
-    # =====================================
-    # 更新名稱
-    # =====================================
-
     if not created:
 
-        stock.name = stock_data.get(
-            "Name",
+        new_name = stock_data.get(
+            "name",
             stock.name
         )
 
-        stock.save()
+        changed = False
+
+        if new_name and stock.name != new_name:
+            stock.name = new_name
+            changed = True
+
+        if market and stock.market != market:
+            stock.market = market
+            changed = True
+
+        if changed:
+            stock.save(
+                update_fields=["name", "market"]
+            )
 
     # =====================================
-    # 歷史資料檢查
+    # 5) 歷史資料檢查（保留原流程）
     # =====================================
 
     print()
@@ -269,18 +343,9 @@ def add_stock(request):
 
     try:
 
-        # =================================
-        # 檢查資料庫是否已有歷史資料
-        # =================================
-
         has_history = StockPrice.objects.filter(
             stock=stock
         ).exists()
-
-        # =================================
-        # 情況 1：
-        # 完全沒有歷史資料
-        # =================================
 
         if not has_history:
 
@@ -308,11 +373,6 @@ def add_stock(request):
                     f"{symbol} 歷史資料抓取失敗"
                 )
 
-        # =================================
-        # 情況 2：
-        # 已經有歷史資料
-        # =================================
-
         else:
 
             print(
@@ -339,10 +399,6 @@ def add_stock(request):
         )
 
     print("=" * 60)
-
-    # =====================================
-    # 前往股票詳細頁
-    # =====================================
 
     return redirect(
         "stock_detail",
