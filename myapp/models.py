@@ -196,6 +196,17 @@ class PredictionHistory(models.Model):
                 name="pred_date_symbol_idx"
             ),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    "prediction_date",
+                    "symbol",
+                    "model_version",
+                    "data_date",
+                ],
+                name="uniq_pred_symbol_model_data_date",
+            )
+        ]
         verbose_name = "AI 歷史預測"
         verbose_name_plural = "AI 歷史預測"
 

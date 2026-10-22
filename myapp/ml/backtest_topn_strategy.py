@@ -540,27 +540,35 @@ def main():
         # 判斷模型方向是否一致。
         # ====================================================
 
-        predicted_direction = (
-            top_df[
-                "predicted_return_20"
-            ] >= 0
+        # 方向準確率：排除 actual == 0 的樣本
+        actual_series = pd.to_numeric(
+            top_df["actual_return_20"],
+            errors="coerce"
         )
 
-
-        actual_direction = (
-            top_df[
-                "actual_return_20"
-            ] >= 0
+        pred_series = pd.to_numeric(
+            top_df["predicted_return_20"],
+            errors="coerce"
         )
 
+        direction_df = pd.DataFrame({
+            "actual": actual_series,
+            "pred": pred_series,
+        }).dropna()
 
-        direction_accuracy = float(
-            (
-                predicted_direction
-                == actual_direction
-            ).mean()
-            * 100
-        )
+        direction_df = direction_df[
+            direction_df["actual"] != 0
+        ]
+
+        if direction_df.empty:
+            direction_accuracy = np.nan
+        else:
+            direction_accuracy = float(
+                (
+                    np.sign(direction_df["pred"])
+                    == np.sign(direction_df["actual"])
+                ).mean() * 100
+            )
 
 
         # ====================================================
@@ -786,10 +794,15 @@ def main():
     # 平均預測方向正確率
     # ========================================================
 
-    average_direction_accuracy = float(
-        strategy_df[
-            "direction_accuracy"
-        ].mean()
+    valid_direction = pd.to_numeric(
+        strategy_df["direction_accuracy"],
+        errors="coerce"
+    ).dropna()
+
+    average_direction_accuracy = (
+        float(valid_direction.mean())
+        if not valid_direction.empty
+        else float("nan")
     )
 
 

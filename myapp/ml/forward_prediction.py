@@ -36,7 +36,7 @@ import django
 import pandas as pd
 import numpy as np
 import lightgbm as lgb
-
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 # ============================================================
 # Django 設定
@@ -82,7 +82,8 @@ TOP_N = 5
 
 MODEL_VERSION = "V5.7-FORWARD"
 
-
+VALID_RATIO = 0.2
+MIN_VALID_SAMPLES = 200
 # ============================================================
 # 輸出資料夾
 # ============================================================
@@ -417,14 +418,13 @@ def create_features(df):
     # 會自然變成 NaN。
     # --------------------------------------------------------
 
+    # 未來 LOOK_FORWARD 筆交易紀錄的報酬
     df["future_return_20"] = (
-        df["close"].shift(
-            -LOOK_FORWARD
-        )
-        /
-        df["close"]
-        - 1
+        df["close"].shift(-LOOK_FORWARD) / df["close"] - 1
     )
+
+    # 必須在每檔股票內計算，不能在全市場合併後才 shift。
+    df["future_date_20"] = df["date"].shift(-LOOK_FORWARD)
 
     return df
 
@@ -536,7 +536,215 @@ def build_market_dataset():
 
     return market_df
 
+def run_time_based_validation(train_df):
+    """
+    時間驗證：僅供監控，不改變最終模型的全資料訓練流程。
 
+    訓練樣本日期與標籤終點都必須早於驗證起始日。
+    此驗證不代表已完成獨立測試或投資組合回測。
+    """
+    if not 0 < VALID_RATIO < 1:
+        raise ValueError("VALID_RATIO 必須介於 0 與 1 之間。")
+
+    required_columns = FEATURE_COLUMNS + [
+        "date",
+        "future_date_20",
+        "future_return_20",
+    ]
+
+    missing_columns = [
+        column
+        for column in required_columns
+        if column not in train_df.columns
+    ]
+
+    if missing_columns:
+        raise ValueError(
+            f"驗證資料缺少欄位：{missing_columns}；"
+            "請確認 create_features() 已建立 future_date_20。"
+        )
+
+    # --------------------------------------------------------
+    # 1. 日期及數值清理
+    # --------------------------------------------------------
+
+    df = train_df.copy()
+
+    for column in ["date", "future_date_20"]:
+        df[column] = pd.to_datetime(
+            df[column],
+            errors="coerce",
+        )
+
+    numeric_columns = FEATURE_COLUMNS + ["future_return_20"]
+
+    df[numeric_columns] = (
+        df[numeric_columns]
+        .apply(pd.to_numeric, errors="coerce")
+        .replace([np.inf, -np.inf], np.nan)
+    )
+
+    df = df.dropna(subset=required_columns).copy()
+
+    # 正常的未來報酬標籤，終點必須晚於樣本日期。
+    df = df.loc[
+        df["future_date_20"] > df["date"]
+    ].sort_values("date").reset_index(drop=True)
+
+    if df.empty:
+        print("驗證資料清理後為空，略過時間驗證。")
+        return
+
+    # --------------------------------------------------------
+    # 2. 依不重複日期切分
+    # --------------------------------------------------------
+
+    unique_dates = (
+        df["date"]
+        .drop_duplicates()
+        .sort_values()
+        .reset_index(drop=True)
+    )
+
+    if len(unique_dates) < 30:
+        print("有效交易日期少於 30 天，略過時間驗證。")
+        return
+
+    split_position = int(
+        len(unique_dates) * (1 - VALID_RATIO)
+    )
+    split_position = max(
+        1,
+        min(split_position, len(unique_dates) - 1),
+    )
+
+    valid_start_date = unique_dates.iloc[split_position]
+
+    # 關鍵：訓練標籤不得使用驗證期間的價格。
+    train_part = df.loc[
+        (df["date"] < valid_start_date)
+        & (df["future_date_20"] < valid_start_date)
+    ].copy()
+
+    valid_part = df.loc[
+        df["date"] >= valid_start_date
+    ].copy()
+
+    purged_count = int(
+        (
+            (df["date"] < valid_start_date)
+            & (df["future_date_20"] >= valid_start_date)
+        ).sum()
+    )
+
+    if (
+        len(train_part) < MIN_VALID_SAMPLES
+        or len(valid_part) < MIN_VALID_SAMPLES
+    ):
+        print(
+            "時間切分後樣本不足，略過驗證。"
+            f"訓練：{len(train_part)} 筆；"
+            f"驗證：{len(valid_part)} 筆；"
+            f"每組至少需要 {MIN_VALID_SAMPLES} 筆。"
+        )
+        return
+
+    # 明確檢查時間邊界，避免未來修改時破壞隔離。
+    if train_part["future_date_20"].max() >= valid_start_date:
+        raise ValueError("訓練標籤終點進入驗證期間。")
+
+    if train_part["date"].max() >= valid_part["date"].min():
+        raise ValueError("訓練與驗證的樣本日期未正確隔離。")
+
+    # --------------------------------------------------------
+    # 3. 訓練獨立的驗證模型
+    # --------------------------------------------------------
+
+    X_train = train_part[FEATURE_COLUMNS]
+    y_train = train_part["future_return_20"]
+
+    X_valid = valid_part[FEATURE_COLUMNS]
+    y_valid = valid_part["future_return_20"]
+
+    eval_model = lgb.LGBMRegressor(
+        objective="regression",
+        n_estimators=300,
+        learning_rate=0.03,
+        num_leaves=31,
+        max_depth=-1,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        random_state=42,
+        n_jobs=-1,
+        verbosity=-1,
+    )
+
+    eval_model.fit(X_train, y_train)
+    predictions = eval_model.predict(X_valid)
+
+    # --------------------------------------------------------
+    # 4. 評估指標
+    # --------------------------------------------------------
+
+    # 訓練標籤採小數報酬；乘以 100 轉成百分點。
+    mae_pp = mean_absolute_error(y_valid, predictions) * 100
+    rmse_pp = (
+        np.sqrt(mean_squared_error(y_valid, predictions)) * 100
+    )
+
+    actual = y_valid.to_numpy()
+    predicted = np.asarray(predictions)
+
+    # 實際報酬為 0 不計入方向準確率。
+    nonzero_mask = actual != 0
+    direction_count = int(nonzero_mask.sum())
+
+    if direction_count > 0:
+        direction_accuracy = float(
+            np.mean(
+                np.sign(predicted[nonzero_mask])
+                == np.sign(actual[nonzero_mask])
+            ) * 100
+        )
+    else:
+        direction_accuracy = float("nan")
+
+    # --------------------------------------------------------
+    # 5. 輸出報告
+    # --------------------------------------------------------
+
+    print()
+    print("=" * 70)
+    print("時間驗證報告（僅供監控）")
+    print("=" * 70)
+    print(f"驗證起始日：{valid_start_date:%Y-%m-%d}")
+    print(
+        "訓練樣本日期："
+        f"{train_part['date'].min():%Y-%m-%d} ～ "
+        f"{train_part['date'].max():%Y-%m-%d}"
+    )
+    print(
+        "訓練標籤最晚終點："
+        f"{train_part['future_date_20'].max():%Y-%m-%d}"
+    )
+    print(
+        "驗證樣本日期："
+        f"{valid_part['date'].min():%Y-%m-%d} ～ "
+        f"{valid_part['date'].max():%Y-%m-%d}"
+    )
+    print(f"因標籤跨界排除：{purged_count:,} 筆")
+    print(f"訓練樣本：{len(X_train):,} 筆")
+    print(f"驗證樣本：{len(X_valid):,} 筆")
+    print(f"MAE：{mae_pp:.4f} 個百分點")
+    print(f"RMSE：{rmse_pp:.4f} 個百分點")
+    print(f"方向有效樣本：{direction_count:,} 筆")
+
+    if np.isnan(direction_accuracy):
+        print("方向準確率：N/A")
+    else:
+        print(f"方向準確率：{direction_accuracy:.2f}%")
+
+    print("=" * 70)
 # ============================================================
 # 建立最終模型
 # ============================================================
@@ -556,12 +764,7 @@ def train_final_model(
     # --------------------------------------------------------
 
     train_df = market_df.dropna(
-        subset=
-        FEATURE_COLUMNS
-        +
-        [
-            "future_return_20"
-        ]
+        subset=FEATURE_COLUMNS + ["future_return_20", "future_date_20"]
     ).copy()
 
     if train_df.empty:
@@ -661,7 +864,8 @@ def train_final_model(
     print(
         "開始訓練 LightGBM..."
     )
-
+    # 監控用時間驗證（不影響最終模型仍用全資料訓練）
+    run_time_based_validation(train_df)
     model.fit(
         X,
         y
@@ -925,8 +1129,8 @@ def save_prediction_history(result_df):
             prediction_date=prediction_date,
             symbol=symbol,
             model_version=model_version,
+            data_date=data_date,
             defaults={
-                "data_date": data_date,
                 "stock_name": str(row.get("stock_name", "")),
                 "close_price": round(float(row["close"]), 2),
                 "predicted_return_20": round(
