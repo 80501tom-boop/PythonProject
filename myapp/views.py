@@ -35,37 +35,6 @@ from scripts.import_history import (
 # ============================================================
 
 def index(request):
-
-    # =====================================
-    # 每天第一次開啟網站時，自動更新股票資料
-    # =====================================
-
-    today = datetime.today().date()
-
-    if request.session.get(
-        "stock_data_update_date"
-    ) != str(today):
-
-        try:
-            print()
-            print("=" * 60)
-            print(f"網站啟動：開始更新股票資料 {today}")
-            print("=" * 60)
-
-            update_all_stocks()
-
-            # 更新成功後才記錄日期
-            request.session[
-                "stock_data_update_date"
-            ] = str(today)
-
-            print("=" * 60)
-            print("股票資料更新完成")
-            print("=" * 60)
-
-        except Exception as e:
-            print(f"股票資料更新失敗：{e}")
-
     # =====================================
     # 股票搜尋（保留原功能）
     # =====================================
@@ -74,13 +43,8 @@ def index(request):
 
     if query:
         stocks = (
-            Stock.objects.filter(
-                symbol__icontains=query
-            )
-            |
-            Stock.objects.filter(
-                name__icontains=query
-            )
+            Stock.objects.filter(symbol__icontains=query)
+            | Stock.objects.filter(name__icontains=query)
         )
     else:
         stocks = Stock.objects.all()
@@ -101,23 +65,18 @@ def index(request):
     latest_model_version = None
 
     if latest_prediction_date:
-
         prediction_queryset = (
             PredictionHistory.objects
-            .filter(
-                prediction_date=latest_prediction_date
-            )
+            .filter(prediction_date=latest_prediction_date)
             .order_by("rank")
         )
 
-        # 取得預測所使用的最新資料日期
         first_prediction = prediction_queryset.first()
 
         if first_prediction:
             latest_data_date = first_prediction.data_date
             latest_model_version = first_prediction.model_version
 
-        # 首頁只顯示 Top 5
         latest_predictions = list(
             prediction_queryset[:5].values(
                 "prediction_date",
@@ -132,28 +91,16 @@ def index(request):
             )
         )
 
-    # =====================================
-    # 傳給首頁 HTML
-    # =====================================
-
     context = {
-        # 原有股票搜尋
         "stocks": stocks,
         "query": query,
-
-        # V6.1 最新預測
         "latest_prediction_date": latest_prediction_date,
         "latest_data_date": latest_data_date,
         "latest_predictions": latest_predictions,
         "latest_model_version": latest_model_version,
     }
 
-    return render(
-        request,
-        "stocks/index.html",
-        context
-    )
-
+    return render(request, "stocks/index.html", context)
 
 
 # ============================================================
@@ -2094,3 +2041,40 @@ def run_forward_evaluation(request):
         cache.delete(LOCK_KEY)
 
     return redirect("prediction_history")
+@require_POST
+def run_update_all_stocks(request):
+    """手動更新全部股票資料（避免在首頁自動執行重任務）。"""
+
+    LOCK_KEY = "stock_ai_update_all_stocks_running"
+
+    if not cache.add(LOCK_KEY, True, timeout=3600):
+        messages.warning(
+            request,
+            "股票資料更新正在執行中，請勿重複點擊。"
+        )
+        return redirect("index")
+
+    try:
+        success = update_all_stocks()
+
+        if success:
+            messages.success(
+                request,
+                "全部股票資料更新完成。"
+            )
+        else:
+            messages.warning(
+                request,
+                "全部股票更新完成，但有部分股票失敗，請查看伺服器日誌。"
+            )
+
+    except Exception as e:
+        messages.error(
+            request,
+            f"更新全部股票發生錯誤：{e}"
+        )
+
+    finally:
+        cache.delete(LOCK_KEY)
+
+    return redirect("index")

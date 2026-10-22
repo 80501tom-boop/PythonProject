@@ -357,6 +357,51 @@ a {
     margin-bottom: 0;
 }
 
+/* 獨立的股票更新表單：按鈕靠卡片內容區右側 */
+.stock-update-form {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    width: 100%;
+    max-width: none;
+    margin: 24px 0 0;
+}
+
+/* 藍色長方形更新按鈕 */
+.stock-update-button {
+    display: inline-block;
+    flex: 0 0 auto;
+    width: auto;
+    margin: 0;
+    padding: 12px 24px;
+    border: 1px solid #2563eb;
+    border-radius: 4px;
+    background-color: #2563eb;
+    color: #fff;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.5;
+    text-align: center;
+    cursor: pointer;
+}
+
+.stock-update-button:hover:not(:disabled) {
+    background-color: #1d4ed8;
+    border-color: #1d4ed8;
+}
+
+.stock-update-button:focus-visible {
+    outline: 3px solid #93c5fd;
+    outline-offset: 3px;
+}
+
+.stock-update-button:disabled {
+    background-color: #6b7280;
+    border-color: #6b7280;
+    cursor: wait;
+    opacity: 0.75;
+}
 @media (max-width: 600px) {
     .prediction-section {
         padding: 16px;

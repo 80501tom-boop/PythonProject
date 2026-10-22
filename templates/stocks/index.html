@@ -50,7 +50,6 @@
     <!-- 標題 -->
 
     <section class="hero">
-
         <h1>
             股票搜尋
         </h1>
@@ -90,7 +89,32 @@
             <input type="text" name="symbol" placeholder="輸入股票代號，例如 2330" required>
             <button type="submit">新增股票</button>
         </form>
+        <form method="POST"
+            action="{% url 'run_update_all_stocks' %}"
+            class="stock-update-form"
+            id="update-all-stocks-form">
+            {% csrf_token %}
+            <button type="submit"
+                    class="stock-update-button"
+                    id="update-all-stocks-btn">
+                更新全部股票資料
+            </button>
+        </form>
 
+        <script>
+        (function () {
+            const form = document.getElementById("update-all-stocks-form");
+            const btn = document.getElementById("update-all-stocks-btn");
+            if (!form || !btn) return;
+
+            form.addEventListener("submit", function () {
+                btn.disabled = true;
+                btn.dataset.originalText = btn.textContent;
+                btn.textContent = "更新中，請稍候...";
+                btn.classList.add("is-loading");
+            });
+        })();
+        </script>
 
     </section>
 

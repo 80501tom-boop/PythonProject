@@ -59,4 +59,9 @@ urlpatterns = [
         views.run_forward_evaluation,
         name="run_forward_evaluation",
     ),
+    path(
+    "run-update-all-stocks/",
+    views.run_update_all_stocks,
+    name="run_update_all_stocks",
+    ),
     ]

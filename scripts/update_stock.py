@@ -5,7 +5,6 @@ import requests
 import pandas as pd
 
 from myapp.models import Stock
-from scripts.import_history import update_stock
 # =====================================
 # Django 設定
 # =====================================
