@@ -80,10 +80,12 @@ MIN_DATA_LENGTH = 120
 
 TOP_N = 5
 
-MODEL_VERSION = "V5.7-FORWARD"
+MODEL_VERSION = "V5.8-FORWARD"
 
 VALID_RATIO = 0.2
 MIN_VALID_SAMPLES = 200
+
+MIN_AVG_VOLUME_20 = 100000
 # ============================================================
 # 輸出資料夾
 # ============================================================
@@ -132,7 +134,7 @@ RANKING_FILE = os.path.join(
 
 MODEL_FILE = os.path.join(
     MODEL_DIR,
-    "lightgbm_v5_7_forward.txt"
+    "lightgbm_v5_8_forward.txt"
 )
 
 
@@ -143,27 +145,18 @@ MODEL_FILE = os.path.join(
 # ============================================================
 
 FEATURE_COLUMNS = [
-
     "return_1",
-
     "return_5",
-
     "return_20",
-
     "ma5_ratio",
-
     "ma20_ratio",
-
     "ma60_ratio",
-
     "rsi",
-
     "volume_change",
-
     "volume_ratio",
-
     "volatility_20",
-
+    "is_twse",
+    "is_tpex",
 ]
 
 
@@ -305,125 +298,48 @@ def create_features(df):
     # --------------------------------------------------------
     # 報酬率
     # --------------------------------------------------------
-
-    df["return_1"] = (
-        df["close"].pct_change(1)
-    )
-
-    df["return_5"] = (
-        df["close"].pct_change(5)
-    )
-
-    df["return_20"] = (
-        df["close"].pct_change(20)
-    )
+    df["return_1"] = df["close"].pct_change(1)
+    df["return_5"] = df["close"].pct_change(5)
+    df["return_20"] = df["close"].pct_change(20)
 
     # --------------------------------------------------------
     # 移動平均
     # --------------------------------------------------------
-
-    df["ma5"] = (
-        df["close"]
-        .rolling(5)
-        .mean()
-    )
-
-    df["ma20"] = (
-        df["close"]
-        .rolling(20)
-        .mean()
-    )
-
-    df["ma60"] = (
-        df["close"]
-        .rolling(60)
-        .mean()
-    )
+    df["ma5"] = df["close"].rolling(5).mean()
+    df["ma20"] = df["close"].rolling(20).mean()
+    df["ma60"] = df["close"].rolling(60).mean()
 
     # --------------------------------------------------------
     # 均線乖離
     # --------------------------------------------------------
-
-    df["ma5_ratio"] = (
-        df["close"]
-        /
-        df["ma5"]
-        - 1
-    )
-
-    df["ma20_ratio"] = (
-        df["close"]
-        /
-        df["ma20"]
-        - 1
-    )
-
-    df["ma60_ratio"] = (
-        df["close"]
-        /
-        df["ma60"]
-        - 1
-    )
+    df["ma5_ratio"] = df["close"] / df["ma5"] - 1
+    df["ma20_ratio"] = df["close"] / df["ma20"] - 1
+    df["ma60_ratio"] = df["close"] / df["ma60"] - 1
 
     # --------------------------------------------------------
     # RSI
     # --------------------------------------------------------
-
-    df["rsi"] = calculate_rsi(
-        df["close"],
-        14
-    )
+    df["rsi"] = calculate_rsi(df["close"], 14)
 
     # --------------------------------------------------------
-    # 成交量變化
+    # 成交量變化 / 均量比
     # --------------------------------------------------------
-
-    df["volume_change"] = (
-        df["volume"]
-        .pct_change(1)
-    )
-
-    # --------------------------------------------------------
-    # 成交量相對20日均量
-    # --------------------------------------------------------
-
-    volume_ma20 = (
-        df["volume"]
-        .rolling(20)
-        .mean()
-    )
-
-    df["volume_ratio"] = (
-        df["volume"]
-        /
-        volume_ma20
-    )
+    df["volume_change"] = df["volume"].pct_change(1)
+    volume_ma20 = df["volume"].rolling(20).mean()
+    df["volume_ma20"] = volume_ma20
+    df["volume_ratio"] = df["volume"] / volume_ma20
 
     # --------------------------------------------------------
     # 20日波動率
     # --------------------------------------------------------
-
-    df["volatility_20"] = (
-        df["return_1"]
-        .rolling(20)
-        .std()
-    )
+    df["volatility_20"] = df["return_1"].rolling(20).std()
 
     # --------------------------------------------------------
-    # 未來20交易日報酬
-    #
-    # 只有歷史資料可以取得這個值。
-    #
-    # 最新資料的 future_return_20
-    # 會自然變成 NaN。
+    # 未來 LOOK_FORWARD 報酬與標籤終點日期
     # --------------------------------------------------------
-
-    # 未來 LOOK_FORWARD 筆交易紀錄的報酬
     df["future_return_20"] = (
         df["close"].shift(-LOOK_FORWARD) / df["close"] - 1
     )
-
-    # 必須在每檔股票內計算，不能在全市場合併後才 shift。
     df["future_date_20"] = df["date"].shift(-LOOK_FORWARD)
 
     return df
@@ -443,20 +359,15 @@ def build_market_dataset():
     stocks = Stock.objects.all()
 
     market_data = []
-
     stock_count = 0
-
     valid_count = 0
+    low_liquidity_count = 0
 
     for stock in stocks:
-
         stock_count += 1
 
         try:
-
-            df = get_stock_data(
-                stock
-            )
+            df = get_stock_data(stock)
 
             if df is None:
                 continue
@@ -464,69 +375,61 @@ def build_market_dataset():
             if len(df) < MIN_DATA_LENGTH:
                 continue
 
-            df = create_features(
-                df
+            df = create_features(df)
+
+            # -----------------------------
+            # 流動性門檻：
+            # 最新一天的 20 日平均成交量不足則略過
+            # -----------------------------
+            latest_volume_ma20 = pd.to_numeric(
+                df["volume_ma20"].iloc[-1],
+                errors="coerce"
             )
 
-            # ------------------------------------------------
-            # 加入股票資訊
-            # ------------------------------------------------
+            if pd.isna(latest_volume_ma20) or latest_volume_ma20 < MIN_AVG_VOLUME_20:
+                low_liquidity_count += 1
+                continue
+
+            # -----------------------------
+            # 加入股票資訊與市場特徵
+            # -----------------------------
+            market_raw = str(getattr(stock, "market", "") or "").strip().upper()
+
+            if market_raw in ("TWSE", "上市"):
+                market_norm = "TWSE"
+            elif market_raw in ("TPEX", "TPEx", "OTC", "上櫃"):
+                market_norm = "TPEx"
+            else:
+                market_norm = "UNKNOWN"
 
             df["stock_id"] = stock.id
+            df["symbol"] = str(stock.symbol).strip().zfill(4)
+            df["stock_name"] = stock.name
 
-            df["symbol"] = str(
-                stock.symbol
-            ).strip().zfill(4)
+            # 市場 one-hot 特徵（最小版）
+            df["is_twse"] = 1 if market_norm == "TWSE" else 0
+            df["is_tpex"] = 1 if market_norm == "TPEx" else 0
 
-            df["stock_name"] = (
-                stock.name
-            )
-
-            market_data.append(
-                df
-            )
-
+            market_data.append(df)
             valid_count += 1
 
         except Exception as e:
-
-            print(
-                f"股票 {stock.symbol} "
-                f"處理失敗：{e}"
-            )
-
+            print(f"股票 {stock.symbol} 處理失敗：{e}")
             continue
 
     if not market_data:
-
         return None
 
-    market_df = pd.concat(
-        market_data,
-        ignore_index=True
-    )
+    market_df = pd.concat(market_data, ignore_index=True)
 
     market_df = market_df.sort_values(
-        [
-            "date",
-            "symbol"
-        ]
-    ).reset_index(
-        drop=True
-    )
+        ["date", "symbol"]
+    ).reset_index(drop=True)
 
-    print(
-        f"股票總數：{stock_count}"
-    )
-
-    print(
-        f"有效股票：{valid_count}"
-    )
-
-    print(
-        f"資料總筆數：{len(market_df)}"
-    )
-
+    print(f"股票總數：{stock_count}")
+    print(f"有效股票：{valid_count}")
+    print(f"流動性不足略過：{low_liquidity_count}")
+    print(f"資料總筆數：{len(market_df)}")
     print(
         f"資料日期："
         f"{market_df['date'].min().strftime('%Y-%m-%d')}"
@@ -774,42 +677,47 @@ def train_final_model(
         )
 
     # --------------------------------------------------------
-    # X / y
+    # X / y（先做一致性清理）
     # --------------------------------------------------------
 
-    X = train_df[
-        FEATURE_COLUMNS
-    ].apply(
-        pd.to_numeric,
+    train_df[FEATURE_COLUMNS] = (
+        train_df[FEATURE_COLUMNS]
+        .apply(pd.to_numeric, errors="coerce")
+        .replace([np.inf, -np.inf], np.nan)
+    )
+
+    train_df["future_return_20"] = pd.to_numeric(
+        train_df["future_return_20"],
         errors="coerce"
     )
 
-    y = pd.to_numeric(
-        train_df[
-            "future_return_20"
-        ],
+    train_df["future_date_20"] = pd.to_datetime(
+        train_df["future_date_20"],
         errors="coerce"
     )
 
-    # --------------------------------------------------------
-    # 再次清理
-    # --------------------------------------------------------
-
-    valid_mask = (
-        X.notna().all(
-            axis=1
-        )
-        &
-        y.notna()
+    train_df["date"] = pd.to_datetime(
+        train_df["date"],
+        errors="coerce"
     )
 
-    X = X.loc[
-        valid_mask
-    ]
+    train_df = train_df.dropna(
+        subset=FEATURE_COLUMNS + ["future_return_20", "future_date_20", "date"]
+    ).copy()
 
-    y = y.loc[
-        valid_mask
-    ]
+    # 基本合理性：約束標籤終點要晚於樣本日期
+    train_df = train_df[
+        train_df["future_date_20"] > train_df["date"]
+    ].copy()
+
+    X = train_df[FEATURE_COLUMNS]
+    y = train_df["future_return_20"]
+
+    valid_mask = X.notna().all(axis=1) & y.notna()
+    train_df = train_df.loc[valid_mask].copy()
+
+    X = train_df[FEATURE_COLUMNS]
+    y = train_df["future_return_20"]
 
     if len(X) == 0:
 
@@ -1099,16 +1007,20 @@ def predict_latest(
 
 def save_prediction_history(result_df):
     """
-    將當次完整前瞻預測結果保存至 MySQL。
-    同一天、同一檔股票、同一模型版本不重複新增。
+    將當次完整前瞻預測結果保存至 MySQL（快照模式）。
+
+    規則（嚴格不覆寫）：
+    1) 同一天、同一檔、同一模型版本、同一 data_date 若不存在 -> 新增
+    2) 若已存在 -> 一律略過（不覆寫，不修改）
+       - 不論是否已評估，皆保留原始快照
     """
 
     if result_df.empty:
         print("沒有預測結果，不保存歷史紀錄。")
         return
 
-    saved_count = 0
-    skipped_count = 0
+    created_count = 0
+    skipped_existing_count = 0
 
     for _, row in result_df.iterrows():
         prediction_date = pd.to_datetime(
@@ -1125,35 +1037,36 @@ def save_prediction_history(result_df):
             row.get("model_version", MODEL_VERSION)
         )
 
+        defaults = {
+            "stock_name": str(row.get("stock_name", "")),
+            "close_price": round(float(row["close"]), 2),
+            "predicted_return_20": round(
+                float(row["predicted_return_20"]) * 100,
+                4
+            ),
+            "rank": int(row["rank"]),
+            "horizon": int(row.get("horizon", LOOK_FORWARD)),
+        }
+
         _, created = PredictionHistory.objects.get_or_create(
             prediction_date=prediction_date,
             symbol=symbol,
             model_version=model_version,
             data_date=data_date,
-            defaults={
-                "stock_name": str(row.get("stock_name", "")),
-                "close_price": round(float(row["close"]), 2),
-                "predicted_return_20": round(
-                    float(row["predicted_return_20"]) * 100,
-                    4
-                ),
-                "rank": int(row["rank"]),
-                "horizon": int(row.get("horizon", LOOK_FORWARD)),
-            }
+            defaults=defaults
         )
 
         if created:
-            saved_count += 1
+            created_count += 1
         else:
-            skipped_count += 1
+            skipped_existing_count += 1
 
     print()
     print("=" * 50)
-    print("歷史預測紀錄保存完成")
-    print(f"新增紀錄：{saved_count} 筆")
-    print(f"略過重複紀錄：{skipped_count} 筆")
+    print("歷史預測紀錄保存完成（快照模式）")
+    print(f"新增紀錄：{created_count} 筆")
+    print(f"已存在略過：{skipped_existing_count} 筆")
     print("=" * 50)
-
 # ============================================================
 # 儲存 Forward Prediction
 # ============================================================
