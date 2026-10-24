@@ -253,10 +253,14 @@ def evaluate_one(record):
         rounding=ROUND_HALF_UP,
     )
 
-    direction_correct = check_direction(
-        predicted_return,
-        actual_return,
-    )
+    # 實際報酬為 0 時，不納入方向準確率分母。
+    if actual_return == ZERO:
+        direction_correct = None
+    else:
+        direction_correct = check_direction(
+            predicted_return,
+            actual_return,
+        )
 
     # 再確認一次紀錄仍未完成評估，避免覆寫既有結果。
     # 將資料庫更新集中在交易中。
@@ -295,6 +299,11 @@ def evaluate_one(record):
             ]
         )
 
+    if direction_correct is None:
+        direction_text = "不計入（實際=0）"
+    else:
+        direction_text = "正確" if direction_correct else "錯誤"
+
     print(
         f"[完成] {symbol} | "
         f"基準日 {record.data_date} | "
@@ -302,7 +311,7 @@ def evaluate_one(record):
         f"預測 {predicted_return:+.4f}% | "
         f"實際 {actual_return:+.4f}% | "
         f"誤差 {prediction_error:+.4f} 個百分點 | "
-        f"方向 {'正確' if direction_correct else '錯誤'}"
+        f"方向 {direction_text}"
     )
 
     return "evaluated"
