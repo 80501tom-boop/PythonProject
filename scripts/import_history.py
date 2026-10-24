@@ -1,4 +1,3 @@
-
 # -*- coding: utf-8 -*-
 
 """
@@ -21,8 +20,7 @@ import_history.py
 import os
 import sys
 import time
-import calendar
-from datetime import date, datetime, timedelta
+from datetime import date
 
 import requests
 import pandas as pd
@@ -73,8 +71,12 @@ HEADERS = {
 }
 
 REQUEST_TIMEOUT = 20
-REQUEST_RETRIES = 3
-REQUEST_DELAY = 0.3
+REQUEST_RETRIES = 5
+REQUEST_DELAY = 0.8
+
+# 429/5xx 額外退避（秒）
+BACKOFF_BASE_SECONDS = 1.5
+BACKOFF_MAX_SECONDS = 30.0
 
 
 # =========================================================
@@ -186,24 +188,36 @@ def month_date_string(yyyymm):
     return f"{yyyymm}01"
 
 
-def month_roc_string(yyyymm):
-    """將 YYYYMM 轉成 TPEx 使用的民國年/月格式。"""
-    year = int(yyyymm[:4]) - 1911
-    month = int(yyyymm[4:6])
-
-    return f"{year}/{month:02d}"
-
-
 # =========================================================
 # HTTP 請求
 # =========================================================
+
+def _parse_retry_after(value):
+    """解析 Retry-After（秒），無法解析時回傳 None。"""
+    if value is None:
+        return None
+
+    text = str(value).strip()
+    if not text:
+        return None
+
+    try:
+        seconds = float(text)
+        if seconds >= 0:
+            return seconds
+    except (ValueError, TypeError):
+        pass
+
+    return None
+
 
 def request_json(url, params):
     """
     發送 API 請求。
 
-    HTTP 錯誤、連線錯誤、非 JSON 回應都會明確拋出錯誤，
-    不會把 API 失敗當成成功。
+    - 支援 429（Too Many Requests）與 Retry-After
+    - 5xx 進行指數退避重試
+    - 非 JSON 回傳、格式錯誤會拋出 MarketDataError
     """
     last_error = None
 
@@ -215,6 +229,52 @@ def request_json(url, params):
                 headers=HEADERS,
                 timeout=REQUEST_TIMEOUT,
             )
+
+            status = response.status_code
+
+            if status == 429:
+                retry_after = _parse_retry_after(
+                    response.headers.get("Retry-After")
+                )
+                wait_seconds = (
+                    retry_after
+                    if retry_after is not None
+                    else min(
+                        BACKOFF_MAX_SECONDS,
+                        BACKOFF_BASE_SECONDS * (2 ** (attempt - 1)),
+                    )
+                )
+
+                err = MarketDataError(
+                    f"API 限流(429)：{response.url}，"
+                    f"等待 {wait_seconds:.1f} 秒後重試"
+                )
+                last_error = err
+                print(f"  API 請求失敗 ({attempt}/{REQUEST_RETRIES})：{err}")
+
+                if attempt < REQUEST_RETRIES:
+                    time.sleep(wait_seconds)
+                    continue
+
+                raise err
+
+            if 500 <= status < 600:
+                wait_seconds = min(
+                    BACKOFF_MAX_SECONDS,
+                    BACKOFF_BASE_SECONDS * (2 ** (attempt - 1)),
+                )
+                err = MarketDataError(
+                    f"API 伺服器錯誤({status})：{response.url}，"
+                    f"等待 {wait_seconds:.1f} 秒後重試"
+                )
+                last_error = err
+                print(f"  API 請求失敗 ({attempt}/{REQUEST_RETRIES})：{err}")
+
+                if attempt < REQUEST_RETRIES:
+                    time.sleep(wait_seconds)
+                    continue
+
+                raise err
 
             response.raise_for_status()
 
@@ -230,8 +290,8 @@ def request_json(url, params):
                     f"API 回傳格式不正確：{response.url}"
                 )
 
+            # 成功後節流，減少觸發限流
             time.sleep(REQUEST_DELAY)
-
             return result
 
         except (
@@ -239,14 +299,17 @@ def request_json(url, params):
             MarketDataError,
         ) as exc:
             last_error = exc
-
             print(
                 f"  API 請求失敗 "
                 f"({attempt}/{REQUEST_RETRIES})：{exc}"
             )
 
             if attempt < REQUEST_RETRIES:
-                time.sleep(attempt)
+                wait_seconds = min(
+                    BACKOFF_MAX_SECONDS,
+                    BACKOFF_BASE_SECONDS * (2 ** (attempt - 1)),
+                )
+                time.sleep(wait_seconds)
 
     raise MarketDataError(
         f"API 重試 {REQUEST_RETRIES} 次仍失敗：{last_error}"
@@ -372,7 +435,6 @@ def get_tpex_month_data(stock_code, yyyymm):
     if not isinstance(result, dict):
         raise MarketDataError("TPEx 回傳格式不是 JSON 物件")
 
-    # 實測成功狀態為小寫 ok，統一轉為大寫判斷。
     status = str(result.get("stat", "")).strip()
 
     if status in ("查詢資料不存在", "查無資料"):
@@ -395,7 +457,6 @@ def get_tpex_month_data(stock_code, yyyymm):
     if not isinstance(tables, list):
         raise MarketDataError("TPEx 回傳缺少有效的 tables 清單")
 
-    # 依欄位找行情表，不假設行情永遠位於 tables[0]。
     required_fields = {
         "日 期", "成交張數", "開盤", "最高", "最低", "收盤"
     }
@@ -450,7 +511,6 @@ def get_tpex_month_data(stock_code, yyyymm):
             "close": clean_number(row["收盤"]),
         }
 
-        # 無成交等情況可能沒有有效價格，不寫入不完整 OHLC。
         if any(
             value is None or not math.isfinite(value) or value <= 0
             for value in prices.values()
@@ -465,7 +525,6 @@ def get_tpex_month_data(stock_code, yyyymm):
             if not volume_lots.is_finite() or volume_lots < 0:
                 raise ValueError("成交張數不是有效的非負數")
 
-            # 先乘 1000，再轉整數，避免先截掉小數張數。
             shares = volume_lots * 1000
 
             if shares != shares.to_integral_value():
@@ -491,6 +550,7 @@ def get_tpex_month_data(stock_code, yyyymm):
         )
 
     return records
+
 
 # =========================================================
 # 市場判斷與資料來源
@@ -546,7 +606,6 @@ def get_month_data(stock, yyyymm):
             records = fetcher(stock.symbol, yyyymm)
 
             if records:
-                # 找到資料後，更新股票市場欄位。
                 if hasattr(stock, "market"):
                     stock.market = market_name
                     stock.save(update_fields=["market"])
@@ -633,11 +692,15 @@ def get_latest_market_date(stock, lookback_months=3):
     """
     往回查詢最近幾個月份，取得 API 中最新的交易日期。
 
-    不直接使用今天日期，避免週末、休市日被當成交易日。
-    API 若持續失敗，會拋出 MarketDataError。
+    回傳：
+        (latest_market_date, month_cache)
+
+    month_cache: dict[yyyymm] = records
+    可重用已抓取月份資料，避免 update 時重複抓同月份。
     """
     today = date.today()
     errors = []
+    month_cache = {}
 
     for offset in range(lookback_months):
         target_month = shift_month(
@@ -647,6 +710,7 @@ def get_latest_market_date(stock, lookback_months=3):
 
         try:
             records = get_month_data(stock, target_month)
+            month_cache[target_month] = records
 
             valid_dates = [
                 item["date"]
@@ -655,7 +719,7 @@ def get_latest_market_date(stock, lookback_months=3):
             ]
 
             if valid_dates:
-                return max(valid_dates)
+                return max(valid_dates), month_cache
 
         except MarketDataError as exc:
             errors.append(
@@ -667,7 +731,7 @@ def get_latest_market_date(stock, lookback_months=3):
             "查詢市場最新交易日期失敗；" + "；".join(errors)
         )
 
-    return None
+    return None, month_cache
 
 
 # =========================================================
@@ -678,8 +742,7 @@ def import_stock(stock_code, months=12):
     """
     匯入指定股票約一年的歷史資料。
 
-    若股票尚未存在於 Stock，會先建立基本紀錄。
-    股票名稱或市場若沒有可靠資料，不會自行猜測名稱。
+    若股票尚未存在於 Stock，需先建立基本紀錄後再匯入。
     """
     stock_code = normalize_symbol(stock_code)
 
@@ -751,10 +814,11 @@ def update_stock(stock_code):
     增量更新單一股票。
 
     1. 查詢資料庫最後日期。
-    2. 查詢市場最新交易日期。
-    3. 若資料已最新，不重抓歷史資料。
+    2. 查詢市場最新交易日期（帶快取）。
+    3. 若資料已最新，不重抓。
     4. 否則從最後日期所在月份開始補抓。
-    5. 只儲存資料庫最後日期之後的交易資料。
+    5. 只儲存最後日期之後資料。
+    6. 任何月份失敗即停止該股票後續月份（避免中間缺口）。
     """
     stock_code = normalize_symbol(stock_code)
 
@@ -775,7 +839,7 @@ def update_stock(stock_code):
         return import_stock(stock_code)
 
     try:
-        latest_market_date = get_latest_market_date(stock)
+        latest_market_date, month_cache = get_latest_market_date(stock)
 
     except MarketDataError as exc:
         print(f"更新失敗：無法確認市場最新日期：{exc}")
@@ -793,15 +857,17 @@ def update_stock(stock_code):
         return True
 
     total_saved = 0
-    failed_months = []
+    failed_month = None
 
-    # 從資料庫最後日期所在月份開始，
-    # 確保同月後續交易日可以被補進來。
     for yyyymm in month_strings(last_date, latest_market_date):
         print(f"\n更新 {yyyymm} 行情...")
 
         try:
-            records = get_month_data(stock, yyyymm)
+            if yyyymm in month_cache:
+                records = month_cache[yyyymm]
+                print("  使用快取資料（避免重複請求）")
+            else:
+                records = get_month_data(stock, yyyymm)
 
             count = save_records(
                 stock,
@@ -817,17 +883,20 @@ def update_stock(stock_code):
             )
 
         except MarketDataError as exc:
-            failed_months.append(yyyymm)
+            failed_month = yyyymm
             print(f"  更新失敗：{exc}")
+            print("  已停止後續月份更新（避免中間缺口）。")
+            break
 
     new_last_date = get_last_date(stock)
 
-    if failed_months:
+    if failed_month is not None:
         print(
             f"\n更新未完全成功：{stock_code}"
             f"；已儲存 {total_saved} 筆"
-            f"；失敗月份：{', '.join(failed_months)}"
+            f"；失敗月份：{failed_month}"
         )
+        print("請修復後重跑，程式會從資料庫最後日期續抓。")
         return False
 
     if new_last_date is None or new_last_date < latest_market_date:
@@ -872,7 +941,6 @@ def update_all_stocks():
                 fail_count += 1
 
         except Exception as exc:
-            # 單一股票出錯，不中斷其他股票更新。
             fail_count += 1
             print(
                 f"股票 {stock.symbol} 發生未預期錯誤：{exc}"
