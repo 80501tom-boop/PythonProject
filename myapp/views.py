@@ -28,17 +28,10 @@ from scripts.import_history import (
 # 首頁
 # ============================================================
 
-
-# ============================================================
-# 首頁
-# V6.1：整合最新前瞻預測 Top 5
-# ============================================================
-
 def index(request):
     # =====================================
     # 股票搜尋（保留原功能）
     # =====================================
-
     query = request.GET.get("q", "").strip()
 
     if query:
@@ -50,9 +43,15 @@ def index(request):
         stocks = Stock.objects.all()
 
     # =====================================
+    # 分頁處理（每頁 12 筆）
+    # =====================================
+    paginator = Paginator(stocks, 12)  # 每頁 12 筆
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
+    # =====================================
     # V6.1：取得最新一批前瞻預測
     # =====================================
-
     latest_prediction_date = (
         PredictionHistory.objects
         .order_by("-prediction_date")
@@ -92,7 +91,7 @@ def index(request):
         )
 
     context = {
-        "stocks": stocks,
+        "page_obj": page_obj,  # ⚠️ 這裡改傳遞 page_obj 取代原本的 stocks
         "query": query,
         "latest_prediction_date": latest_prediction_date,
         "latest_data_date": latest_data_date,

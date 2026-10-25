@@ -62,7 +62,7 @@ LOOK_FORWARD = 20
 
 MIN_DATA_LENGTH = 120
 
-TOP_N = 5
+TOP_N = 10
 
 # 每隔幾個交易日做一次回測
 # 1 = 每個交易日
@@ -421,6 +421,12 @@ def run_single_backtest(
         + ["future_return_20", "future_date_20"]
     )
 
+    # 新增：排除極端 label 樣本（僅訓練集）
+    train_df = train_df[
+        (train_df["future_return_20"] >= -0.5)
+        & (train_df["future_return_20"] <= 1.5)
+    ].copy()
+    
     train_df = train_df.sort_values(
         "date"
     )

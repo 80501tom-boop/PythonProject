@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-V5.8 - Top-N 股票選股策略回測
+V5.9 - Top-N 股票選股策略回測
 
 功能：
 1. 讀取 market_backtest.csv
@@ -15,39 +15,17 @@ V5.8 - Top-N 股票選股策略回測
 9. 計算超越市場比例
 10. 計算預測方向正確率（排除 actual_return_20 = 0）
 11. 計算最佳／最差回測期間
-12. 最大回撤改為 N/A（不誤導）
+12. 最大回撤維持 N/A（避免重疊 forward return 誤導）
 13. 不將重疊的 20 日報酬直接複利
 14. prediction_error 定義統一為：
     actual_return_20 - predicted_return_20
-15. 輸出：
+15. 額外診斷：
+    - 每期 Rank IC（Spearman）
+    - 每期前半部勝率（Top half hit rate）
+16. 輸出：
     - market_strategy_backtest.csv
     - market_strategy_detail.csv
     - market_strategy_summary.csv
-
-版本差異：
-
-V5.6：
-    將每一期 actual_return_20 直接進行複利，
-    但不同回測日期的 20 日 forward return 具有高度重疊，
-    容易產生失真的累積報酬。
-
-V5.7：
-    移除重疊報酬直接複利的累積績效呈現，
-    改以平均實際報酬、超額報酬、正報酬比例、
-    超越市場比例、方向正確率、最佳/最差期間做評估。
-
-V5.8：
-    1) prediction_error 定義統一為 actual - predicted，
-       與 evaluate_forward_predictions.py 一致。
-    2) 最大回撤在目前資料結構下改為 N/A，
-       避免將重疊 forward return 誤解為可交易淨值路徑。
-
-注意：
-    actual_return_20 是未來 20 個交易日的 forward return，
-    用於模型預測能力與選股能力評估。
-
-    本版本不將重疊的 20 日 forward return
-    宣稱為可直接複利的投資組合累積報酬。
 """
 
 import os
@@ -68,24 +46,20 @@ OUTPUT_DIR = os.path.join(
     "output"
 )
 
-
 INPUT_FILE = os.path.join(
     OUTPUT_DIR,
     "market_backtest.csv"
 )
-
 
 STRATEGY_FILE = os.path.join(
     OUTPUT_DIR,
     "market_strategy_backtest.csv"
 )
 
-
 DETAIL_FILE = os.path.join(
     OUTPUT_DIR,
     "market_strategy_detail.csv"
 )
-
 
 SUMMARY_FILE = os.path.join(
     OUTPUT_DIR,
@@ -97,7 +71,7 @@ SUMMARY_FILE = os.path.join(
 # 策略設定
 # ============================================================
 
-TOP_N = 5
+TOP_N = 10
 
 
 # ============================================================
@@ -133,7 +107,6 @@ def normalize_symbol(series):
         2330    -> 2330
         0050.0  -> 0050
     """
-
     return (
         series
         .astype(str)
@@ -147,37 +120,126 @@ def normalize_symbol(series):
     )
 
 
-# ============================================================
-# 計算最大回撤
-# ============================================================
-
 def calculate_max_drawdown(returns):
     """
     計算最大回撤（目前停用版）。
 
     為避免誤導，本函式在「重疊 forward return」資料下不計算 MDD，
-    一律回傳 NaN。未來若提供「日頻、可交易、非重疊」策略淨值序列，
-    再啟用正式 MDD 計算。
-
-    參數：
-        returns: 可迭代報酬序列（目前僅做基本檢查）
-
-    回傳：
-        float("nan")
+    一律回傳 NaN。
     """
     if returns is None:
         return float("nan")
 
     try:
-        series = pd.Series(returns, dtype="float64").replace([np.inf, -np.inf], np.nan).dropna()
+        series = (
+            pd.Series(returns, dtype="float64")
+            .replace([np.inf, -np.inf], np.nan)
+            .dropna()
+        )
     except Exception:
         return float("nan")
 
     if series.empty:
         return float("nan")
 
-    # 目前資料型態不適合嚴謹計算 MDD，先回傳 N/A 對應值
     return float("nan")
+
+
+def validate_backtest_input(df, top_n):
+    """
+    嚴格檢查輸入資料，避免先刪資料再選股造成偏差。
+    """
+    required_columns = [
+        "date",
+        "symbol",
+        "predicted_return_20",
+        "actual_return_20",
+    ]
+
+    missing_columns = [
+        col for col in required_columns
+        if col not in df.columns
+    ]
+    if missing_columns:
+        raise ValueError(
+            "market_backtest.csv 缺少欄位："
+            + ", ".join(missing_columns)
+        )
+
+    invalid_mask = df[required_columns].isna().any(axis=1)
+
+    for col in ["predicted_return_20", "actual_return_20"]:
+        invalid_mask |= ~np.isfinite(df[col])
+
+    invalid_mask |= df["symbol"].astype(str).str.strip().str.lower().isin(
+        ["", "nan", "none", "<na>"]
+    )
+
+    if invalid_mask.any():
+        sample = df.loc[invalid_mask, required_columns].head(10)
+        raise ValueError(
+            "輸入資料含缺值、無限值或無效代號，已停止。\n"
+            + sample.to_string(index=False)
+        )
+
+    duplicate_mask = df.duplicated(
+        subset=["date", "symbol"],
+        keep=False
+    )
+
+    if duplicate_mask.any():
+        sample = df.loc[duplicate_mask, required_columns].head(10)
+        raise ValueError(
+            "發現同日同股重複資料，已停止。\n"
+            + sample.to_string(index=False)
+        )
+
+    counts = df.groupby("date")["symbol"].nunique()
+    insufficient = counts[counts < top_n]
+
+    if not insufficient.empty:
+        raise ValueError(
+            f"部分日期股票數不足 TOP_N={top_n}：\n"
+            + insufficient.to_string()
+        )
+
+
+def calc_rank_ic(current_df):
+    """
+    橫截面 Spearman Rank IC：
+    predicted 越高，actual 是否越高。
+    """
+    x = pd.to_numeric(
+        current_df["predicted_return_20"],
+        errors="coerce"
+    )
+    y = pd.to_numeric(
+        current_df["actual_return_20"],
+        errors="coerce"
+    )
+
+    valid = (
+        x.notna()
+        & y.notna()
+        & np.isfinite(x)
+        & np.isfinite(y)
+    )
+
+    if valid.sum() < 3:
+        return float("nan")
+
+    rank_x = x[valid].rank(method="average")
+    rank_y = y[valid].rank(method="average")
+
+    if rank_x.nunique() < 2 or rank_y.nunique() < 2:
+        return float("nan")
+
+    corr = rank_x.corr(rank_y, method="pearson")
+
+    if pd.isna(corr):
+        return float("nan")
+
+    return float(corr)
 
 
 # ============================================================
@@ -188,7 +250,7 @@ def main():
 
     print()
     print("=" * 70)
-    print("V5.8 - Top-N 股票選股策略回測")
+    print("V5.9 - Top-N 股票選股策略回測")
     print("=" * 70)
     print()
 
@@ -198,9 +260,7 @@ def main():
     )
 
     if not os.path.exists(INPUT_FILE):
-        print(
-            f"錯誤：找不到輸入檔案：\n{INPUT_FILE}"
-        )
+        print(f"錯誤：找不到輸入檔案：\n{INPUT_FILE}")
         return
 
     try:
@@ -241,6 +301,7 @@ def main():
         df["predicted_return_20"],
         errors="coerce"
     )
+
     df["actual_return_20"] = pd.to_numeric(
         df["actual_return_20"],
         errors="coerce"
@@ -254,6 +315,12 @@ def main():
             "actual_return_20",
         ]
     ).copy()
+
+    try:
+        validate_backtest_input(df, TOP_N)
+    except ValueError as exc:
+        print(f"錯誤：{exc}")
+        return
 
     df = df.sort_values(
         ["date", "predicted_return_20"],
@@ -277,6 +344,7 @@ def main():
 
     strategy_results = []
     detail_results = []
+    top_half_hit_list = []
 
     for backtest_date in backtest_dates:
         current_df = df[df["date"] == backtest_date].copy()
@@ -335,6 +403,15 @@ def main():
                 ).mean() * 100
             )
 
+        rank_ic = calc_rank_ic(current_df)
+
+        half_n = max(1, len(current_df) // 2)
+        top_half = current_df.head(half_n)
+        top_half_hit = float(
+            (top_half["actual_return_20"] > 0).mean() * 100
+        )
+        top_half_hit_list.append(top_half_hit)
+
         strategy_results.append({
             "date": pd.Timestamp(backtest_date).strftime("%Y-%m-%d"),
             "top_n": TOP_N,
@@ -345,6 +422,8 @@ def main():
             "positive_rate": positive_rate,
             "outperform_market": int(outperform_market),
             "direction_accuracy": direction_accuracy,
+            "rank_ic": rank_ic,
+            "top_half_hit_rate": top_half_hit,
         })
 
         for _, stock in top_df.iterrows():
@@ -399,6 +478,23 @@ def main():
         else float("nan")
     )
 
+    rank_ic_series = pd.to_numeric(
+        strategy_df["rank_ic"],
+        errors="coerce"
+    ).dropna()
+
+    average_rank_ic = (
+        float(rank_ic_series.mean())
+        if not rank_ic_series.empty
+        else float("nan")
+    )
+
+    top_half_hit_rate = (
+        float(np.mean(top_half_hit_list))
+        if top_half_hit_list
+        else float("nan")
+    )
+
     best_row = strategy_df.loc[strategy_df["actual_avg"].idxmax()]
     best_date = pd.Timestamp(best_row["date"]).strftime("%Y-%m-%d")
     best_return = float(best_row["actual_avg"])
@@ -418,7 +514,7 @@ def main():
     )
 
     summary_df = pd.DataFrame([{
-        "version": "V5.8",
+        "version": "V5.9",
         "top_n": TOP_N,
         "backtest_periods": backtest_periods,
         "start_date": start_date.strftime("%Y-%m-%d"),
@@ -429,6 +525,8 @@ def main():
         "positive_return_rate": positive_return_rate,
         "outperform_rate": outperform_rate,
         "direction_accuracy": average_direction_accuracy,
+        "average_rank_ic": average_rank_ic,
+        "top_half_hit_rate": top_half_hit_rate,
         "max_drawdown": max_drawdown_value,
         "best_date": best_date,
         "best_return": best_return,
@@ -469,9 +567,11 @@ def main():
     print(f"Top-{TOP_N} 正報酬比例：{positive_return_rate:.2f}%")
     print(f"Top-{TOP_N} 超越市場比例：{outperform_rate:.2f}%")
     print(f"預測方向正確率：{average_direction_accuracy:.2f}%")
+    print(f"平均 RankIC：{average_rank_ic:.4f}")
+    print(f"前半部勝率：{top_half_hit_rate:.2f}%")
 
     print()
-    print("【V5.8 策略績效分析】")
+    print("【V5.9 策略績效分析】")
     print(f"平均超額報酬：{average_excess:.2f}%")
 
     if pd.isna(max_drawdown):
@@ -484,10 +584,10 @@ def main():
     print(f"預測方向正確率：{average_direction_accuracy:.2f}%")
 
     print()
-    print("【V5.8 回測說明】")
+    print("【V5.9 回測說明】")
     print("本版本不再計算重疊 20 日報酬的累積複利績效。")
     print("actual_return_20 僅用於評估模型的未來 20 日報酬預測與選股能力。")
-    print("因此不再輸出 V5.6 的1153.97% 類型累積報酬。")
+    print("因此不再輸出 V5.6 的累積報酬型指標。")
 
     print()
     print("【輸出檔案】")
@@ -497,11 +597,11 @@ def main():
     print("選股明細：")
     print(DETAIL_FILE)
     print()
-    print("V5.8 績效摘要：")
+    print("V5.9 績效摘要：")
     print(SUMMARY_FILE)
 
     print()
-    print("V5.8 完成")
+    print("V5.9 完成")
     print("=" * 70)
 
 
@@ -510,5 +610,4 @@ def main():
 # ============================================================
 
 if __name__ == "__main__":
-
     main()

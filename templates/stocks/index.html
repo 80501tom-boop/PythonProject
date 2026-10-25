@@ -33,7 +33,7 @@
     </div>
 
     <div class="nav-title">
-        股票資料分析與預測平台
+        AI 量化選股與回測系統
     </div>
 
 </header>
@@ -118,102 +118,66 @@
 
     </section>
 
-
-
     <!-- =========================
-         搜尋結果
-    ========================= -->
-
+        搜尋結果 / 股票清單
+    ================ -->
     <section class="stock-section">
-
-
         {% if query %}
-
-            <h2>
-                搜尋「{{ query }}」的結果
-            </h2>
-
+            <h2>搜尋「{{ query }}」的結果</h2>
         {% else %}
-
-            <h2>
-                股票清單
-            </h2>
-
+            <h2>股票清單</h2>
         {% endif %}
 
-
-
-        {% if stocks %}
-
-
+        {% if page_obj %}
             <div class="stock-grid">
-
-
-                {% for stock in stocks %}
-
-
-                    <a
-                        href="{% url 'stock_detail' stock.symbol %}"
-                        class="stock-card"
-                    >
-
-                        <div class="stock-symbol">
-
-                            {{ stock.symbol }}
-
-                        </div>
-
-
-                        <div class="stock-name">
-
-                            {{ stock.name }}
-
-                        </div>
-
-
-                        <div class="stock-market">
-
-                            {{ stock.market }}
-
-                        </div>
-
-
-                        <div class="stock-link">
-
-                            查看詳細資料 →
-
-                        </div>
-
+                {% for stock in page_obj %}
+                    <a href="{% url 'stock_detail' stock.symbol %}" class="stock-card">
+                        <div class="stock-symbol">{{ stock.symbol }}</div>
+                        <div class="stock-name">{{ stock.name }}</div>
+                        <div class="stock-market">{{ stock.market }}</div>
+                        <div class="stock-link">查看詳細資料 →</div>
                     </a>
-
-
                 {% endfor %}
-
-
             </div>
 
+            <!-- 📌 單行整合式藍色長方形分頁列 -->
+            <div class="pagination-container">
+                {% if page_obj.has_previous %}
+                    <a href="?page=1{% if query %}&q={{ query }}{% endif %}" class="page-btn">&laquo; 第一頁</a>
+                    <a href="?page={{ page_obj.previous_page_number }}{% if query %}&q={{ query }}{% endif %}" class="page-btn">上一頁</a>
+                {% endif %}
+
+                <!-- 第 n 頁跳轉表單（內嵌於同一直行） -->
+                <form method="get" class="pagination-jump-form">
+                    {% if query %}
+                        <input type="hidden" name="q" value="{{ query }}">
+                    {% endif %}
+                    <span class="page-text">第</span>
+                    <input 
+                        type="number" 
+                        name="page" 
+                        min="1" 
+                        max="{{ page_obj.paginator.num_pages }}" 
+                        value="{{ page_obj.number }}" 
+                        class="page-input"
+                    >
+                    <span class="page-text">頁 / 共 {{ page_obj.paginator.num_pages }} 頁</span>
+                    <button type="submit" class="page-btn-submit">跳轉</button>
+                </form>
+
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}{% if query %}&q={{ query }}{% endif %}" class="page-btn">下一頁</a>
+                    <a href="?page={{ page_obj.paginator.num_pages }}{% if query %}&q={{ query }}{% endif %}" class="page-btn">最後一頁 &raquo;</a>
+                {% endif %}
+            </div>
 
         {% else %}
-
-
             <!-- 沒有搜尋結果 -->
-
             <div class="no-result">
-
-                <h3>
-                    找不到股票
-                </h3>
-
-                <p>
-                    請確認股票代號或股票名稱是否正確。
-                </p>
-
+                <h3>找不到股票</h3>
+                <p>請確認股票代號或股票名稱是否正確。</p>
             </div>
-
-
         {% endif %}
-
-
     </section>
 
     <!-- V6.1 最新前瞻預測 -->

@@ -402,6 +402,71 @@ a {
     cursor: wait;
     opacity: 0.75;
 }
+
+/* 📌 單行對齊的分頁容器 */
+.pagination-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 35px 0;
+}
+
+/* 🟦 藍色長方形按鈕與跳轉按鈕樣式 */
+.page-btn, .page-btn-submit {
+    background-color: #0066cc;
+    color: #ffffff;
+    padding: 8px 14px;
+    border: 1px solid #0055b3;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    height: 36px; /* 統一高度與輸入框對齊 */
+    box-sizing: border-box;
+}
+
+.page-btn:hover, .page-btn-submit:hover {
+    background-color: #004d99;
+}
+
+/* 內嵌跳轉表單設定 */
+.pagination-jump-form {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+}
+
+/* 文字樣式 */
+.page-text {
+    font-size: 14px;
+    color: #333333;
+}
+
+/* 輸入框樣式 */
+.page-input {
+    width: 55px;
+    height: 36px;
+    padding: 0 6px;
+    border: 1px solid #cccccc;
+    border-radius: 4px;
+    text-align: center;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.page-input:focus {
+    outline: none;
+    border-color: #0066cc;
+    box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.2);
+}
+
 @media (max-width: 600px) {
     .prediction-section {
         padding: 16px;
