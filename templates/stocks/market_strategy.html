@@ -516,7 +516,7 @@
 
         <div class="subtitle">
             基於機器學習預測未來 20 日報酬，
-            對全市場股票進行排序並選出 Top-5，
+            對全市場股票進行排序並選出 Top-10，
             再與全市場平均報酬進行比較。
         </div>
 
@@ -546,7 +546,7 @@
         <div class="card">
 
             <div class="card-label">
-                Top-5 平均實際報酬
+                Top-10 平均實際報酬
             </div>
 
             <div class="card-value
@@ -562,7 +562,7 @@
             </div>
 
             <div class="card-desc">
-                Top-5 股票未來 20 日平均實際報酬
+                Top-10 股票未來 20 日平均實際報酬
             </div>
 
         </div>
@@ -606,7 +606,7 @@
             </div>
 
             <div class="card-desc">
-                Top-5 與市場平均報酬之差
+                Top-10 與市場平均報酬之差
             </div>
 
         </div>
@@ -625,7 +625,7 @@
             </div>
 
             <div class="card-desc">
-                Top-5 實際報酬高於市場的回測期間比例
+                Top-10 實際報酬高於市場的回測期間比例
             </div>
 
         </div>
@@ -644,7 +644,7 @@
             </div>
 
             <div class="card-desc">
-                Top-5 平均實際報酬為正的期間比例
+                Top-10 平均實際報酬為正的期間比例
             </div>
 
         </div>
@@ -721,7 +721,7 @@
         </div>
 
         <div class="section-desc">
-            比較各回測期間 Top-5 與全市場的實際報酬。
+            比較各回測期間 Top-10 與全市場的實際報酬。
             不進行重疊 20 日報酬的累積複利計算。
         </div>
 
@@ -741,7 +741,7 @@
     <div class="section">
 
         <div class="section-title">
-            Top-5 選股明細
+            Top-10 選股明細
         </div>
 
         <div class="section-desc">
@@ -820,7 +820,7 @@
         {% else %}
 
         <div class="note">
-            目前沒有可顯示的 Top-5 選股資料。
+            目前沒有可顯示的 Top-10 選股資料。
         </div>
 
         {% endif %}
@@ -839,7 +839,7 @@
         </div>
 
         <div class="section-desc">
-            每個回測日期皆重新進行全市場排序並選出 Top-5。
+            每個回測日期皆重新進行全市場排序並選出 Top-10。
         </div>
 
 
@@ -1050,7 +1050,7 @@
                 </div>
 
                 <div class="step-text">
-                    每個回測日期將全市場股票依預測報酬排序，選出 Top-5。
+                    每個回測日期將全市場股票依預測報酬排序，選出 Top-10。
                 </div>
 
             </div>
@@ -1067,7 +1067,7 @@
                 </div>
 
                 <div class="step-text">
-                    比較 Top-5 與全市場實際報酬，評估選股效果。
+                    比較 Top-10 與全市場實際報酬，評估選股效果。
                 </div>
 
             </div>
@@ -1129,7 +1129,7 @@
 
                     {
                         label:
-                            "Top-5 實際報酬",
+                            "Top-10 實際報酬",
 
                         data:
                             topN,
