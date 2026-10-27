@@ -17,8 +17,11 @@ V5.1 AI 全市場歷史回測
 
 注意：
 Top N 選股策略由 V5.4 backtest_topn_strategy.py 負責。
-"""
 
+baseline: v10
+current: v12
+比較結果（Top-10: 2.19% vs 2.08%）
+"""
 import os
 import sys
 
@@ -80,6 +83,8 @@ FEATURE_COLUMNS = [
     "volume_change",
     "volume_ratio",
     "volatility_20",
+    "is_twse",
+    "is_tpex"
 ]
 
 
@@ -265,8 +270,7 @@ def create_features(df):
     )
 
     # 成交量比例
-
-    volume_ma20 = (
+    df["volume_ma20"] = (
         df["volume"]
         .rolling(20)
         .mean()
@@ -274,7 +278,7 @@ def create_features(df):
 
     df["volume_ratio"] = (
         df["volume"] /
-        volume_ma20
+        df["volume_ma20"]
     )
 
     # 波動率
@@ -296,7 +300,6 @@ def create_features(df):
     df["future_date_20"] = (
         df["date"].shift(-LOOK_FORWARD)
     )
-
     return df
 
 
@@ -355,6 +358,29 @@ def build_market_dataset():
         df = create_features(
             df
         )
+
+        # 市場 one-hot 特徵
+        market_raw = str(getattr(stock, "market", "") or "").strip().upper()
+
+        if market_raw in ("TWSE", "上市"):
+            market_norm = "TWSE"
+        elif market_raw in ("TPEX", "TPEX", "OTC", "上櫃"):
+            market_norm = "TPEX"
+        else:
+            market_norm = "UNKNOWN"
+
+        df["is_twse"] = 1 if market_norm == "TWSE" else 0
+        df["is_tpex"] = 1 if market_norm == "TPEX" else 0
+
+        # 流動性門檻（與 forward 對齊）
+        latest_volume_ma20 = pd.to_numeric(
+            df["volume_ma20"].iloc[-1],
+            errors="coerce"
+        )
+
+        if pd.isna(latest_volume_ma20) or latest_volume_ma20 < 100000:
+            print("  -> Skip: low liquidity")
+            continue
 
         df["symbol"] = (
             str(stock.symbol)

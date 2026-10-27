@@ -709,7 +709,13 @@ def train_final_model(
     train_df = train_df[
         train_df["future_date_20"] > train_df["date"]
     ].copy()
-
+    
+    # 與回測一致：排除極端 label 樣本（僅訓練）
+    train_df = train_df[
+        (train_df["future_return_20"] >= -0.5)
+        & (train_df["future_return_20"] <= 1.5)
+    ].copy()
+    
     X = train_df[FEATURE_COLUMNS]
     y = train_df["future_return_20"]
 
