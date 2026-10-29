@@ -48,10 +48,13 @@ REFERENCE_SHARE = 0.5
 # 單日報酬絕對值門檻
 JUMP_THRESHOLD = 0.20
 
-# 已確認為暫停交易的日期，不計入缺漏
+# 已確認為暫停交易的日期，不計入缺漏（原因皆為市場暫停交易）
 HALTED_DAYS = {
     "0050": {"2025-06-11", "2025-06-12", "2025-06-13", "2025-06-16", "2025-06-17"},
     "0052": {"2025-11-19", "2025-11-20", "2025-11-21", "2025-11-24", "2025-11-25"},
+    "2317": {"2025-07-30"},
+    "2884": {"2025-11-05"},
+    "3037": {"2022-02-22"},
 }
 
 REPORT_PATH = os.path.join(BASE_DIR, "price_gap_report.csv")
@@ -96,7 +99,10 @@ def check_symbol(symbol, sdf, ref_dates, ref_max):
     last = max(dates)
 
     expected = {d for d in ref_dates if first <= d <= last}
-    missing = sorted(expected - dates)
+    halted = {
+        pd.Timestamp(d) for d in HALTED_DAYS.get(symbol, set())
+    }
+    missing = sorted(expected - dates - halted)
 
     bad_price = int(
         ((sdf["close"] <= 0) | sdf["close"].isna()).sum()
@@ -115,6 +121,9 @@ def check_symbol(symbol, sdf, ref_dates, ref_max):
         "missing_days": len(missing),
         "missing_sample": ", ".join(
             d.strftime("%Y-%m-%d") for d in missing[:5]
+        ),
+        "missing_all": ", ".join(
+            d.strftime("%Y-%m-%d") for d in missing
         ),
         "stale": last < ref_max,
         "bad_price": bad_price,
