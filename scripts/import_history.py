@@ -17,6 +17,7 @@ import_history.py
     python scripts/import_history.py 6488
     python scripts/import_history.py 2330 --months 60   # 回補 60 個月
     python scripts/import_history.py all --months 60    # 全部股票回補 60 個月
+    python scripts/import_history.py 0050 --months 70 --force  # 強制重抓 70 個月（補缺漏）
 """
 
 import os
@@ -760,7 +761,7 @@ def count_existing_rows_by_month(stock, start_date):
     return counts
 
 
-def import_stock(stock_code, months=12):
+def import_stock(stock_code, months=12, force=False):
     """
     匯入指定股票約一年的歷史資料。
 
@@ -794,7 +795,8 @@ def import_stock(stock_code, months=12):
     for yyyymm in month_strings(start_date, today):
         # 已完整存在的月份略過；當月一律重抓以更新最新資料
         if (
-            yyyymm != current_yyyymm
+            not force
+            and yyyymm != current_yyyymm
             and existing_counts.get(yyyymm, 0) >= MIN_COMPLETE_MONTH_ROWS
         ):
             print(f"\n略過 {yyyymm}（資料庫已有完整資料）")
@@ -993,7 +995,7 @@ def update_all_stocks():
 # 命令列入口
 # =========================================================
 
-def import_all_stocks(months):
+def import_all_stocks(months, force=False):
     """以指定月數回補全部股票，並統計成功與失敗數量。"""
     stocks = Stock.objects.all().order_by("symbol")
 
@@ -1009,7 +1011,7 @@ def import_all_stocks(months):
         print(f"\n[{index}/{total}] {stock.symbol}")
 
         try:
-            if import_stock(stock.symbol, months=months):
+            if import_stock(stock.symbol, months=months, force=force):
                 success_count += 1
             else:
                 fail_count += 1
@@ -1046,6 +1048,10 @@ if __name__ == "__main__":
 
         del sys.argv[idx:idx + 2]
 
+    # --force：忽略既有資料，重抓指定期間所有月份（用於補缺漏）
+    force = "--force" in sys.argv
+    sys.argv = [arg for arg in sys.argv if arg != "--force"]
+
     if len(sys.argv) >= 2:
         argument = sys.argv[1].strip()
     else:
@@ -1053,14 +1059,14 @@ if __name__ == "__main__":
 
     if argument.lower() == "all":
         if months is not None:
-            success = import_all_stocks(months)
+            success = import_all_stocks(months, force=force)
         else:
             success = update_all_stocks()
 
     elif months is not None or (
         len(sys.argv) >= 3 and sys.argv[2].lower() == "import"
     ):
-        success = import_stock(argument, months=months or 12)
+        success = import_stock(argument, months=months or 12, force=force)
 
     else:
         success = update_stock(argument)
