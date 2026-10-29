@@ -65,6 +65,9 @@ LOOK_FORWARD = 20
 
 MIN_DATA_LENGTH = 120
 
+# 逐日流動性門檻（20 日平均成交量，股）
+MIN_AVG_VOLUME_20 = 100000
+
 TOP_N = 10
 
 # 每隔幾個交易日做一次回測
@@ -372,13 +375,16 @@ def build_market_dataset():
         df["is_twse"] = 1 if market_norm == "TWSE" else 0
         df["is_tpex"] = 1 if market_norm == "TPEX" else 0
 
-        # 流動性門檻（與 forward 對齊）
-        latest_volume_ma20 = pd.to_numeric(
-            df["volume_ma20"].iloc[-1],
+        # 逐日流動性門檻：每一列只用當天的 volume_ma20 過濾，
+        # 避免用資料最後一天的值決定整檔股票是否納入（前視偏誤）
+        liquid_mask = pd.to_numeric(
+            df["volume_ma20"],
             errors="coerce"
-        )
+        ) >= MIN_AVG_VOLUME_20
 
-        if pd.isna(latest_volume_ma20) or latest_volume_ma20 < 100000:
+        df = df[liquid_mask].copy()
+
+        if df.empty:
             print("  -> Skip: low liquidity")
             continue
 
