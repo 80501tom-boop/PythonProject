@@ -80,6 +80,9 @@ REQUEST_DELAY = 0.8
 BACKOFF_BASE_SECONDS = 1.5
 BACKOFF_MAX_SECONDS = 30.0
 
+# 月份資料筆數達此門檻即視為完整，回補時略過（交易月約 18～23 日）
+MIN_COMPLETE_MONTH_ROWS = 15
+
 
 # =========================================================
 # 自訂錯誤
@@ -740,6 +743,23 @@ def get_latest_market_date(stock, lookback_months=3):
 # 匯入約一年歷史資料
 # =========================================================
 
+def count_existing_rows_by_month(stock, start_date):
+    """統計 start_date 之後，資料庫中每個月已有的交易日筆數。"""
+    counts = {}
+
+    dates = (
+        StockPrice.objects
+        .filter(stock=stock, date__gte=start_date)
+        .values_list("date", flat=True)
+    )
+
+    for trade_date in dates:
+        key = trade_date.strftime("%Y%m")
+        counts[key] = counts.get(key, 0) + 1
+
+    return counts
+
+
 def import_stock(stock_code, months=12):
     """
     匯入指定股票約一年的歷史資料。
@@ -768,7 +788,18 @@ def import_stock(stock_code, months=12):
     total_saved = 0
     failed_months = []
 
+    existing_counts = count_existing_rows_by_month(stock, start_date)
+    current_yyyymm = today.strftime("%Y%m")
+
     for yyyymm in month_strings(start_date, today):
+        # 已完整存在的月份略過；當月一律重抓以更新最新資料
+        if (
+            yyyymm != current_yyyymm
+            and existing_counts.get(yyyymm, 0) >= MIN_COMPLETE_MONTH_ROWS
+        ):
+            print(f"\n略過 {yyyymm}（資料庫已有完整資料）")
+            continue
+
         print(f"\n取得 {yyyymm} 行情...")
 
         try:
