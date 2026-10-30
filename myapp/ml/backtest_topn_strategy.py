@@ -72,6 +72,8 @@ SUMMARY_FILE = os.path.join(
 # ============================================================
 
 TOP_N = 10
+COST_ONE_WAY = 0.001
+LOOK_FORWARD = 20
 
 
 # ============================================================
@@ -383,6 +385,7 @@ def main():
     strategy_results = []
     detail_results = []
     top_half_hit_list = []
+    picks_history = []
 
     for backtest_date in backtest_dates:
         current_df = df[df["date"] == backtest_date].copy()
@@ -443,6 +446,17 @@ def main():
 
         rank_ic = calc_rank_ic(current_df)
 
+        # 每日建立一個 20 日持有的子組合，成本攤提到 20 個子組合
+        picks = set(top_df["symbol"])
+        picks_history.append(picks)
+        i = len(picks_history) - 1
+        prev_picks = picks_history[i - LOOK_FORWARD] if i >= LOOK_FORWARD else None
+        turnover = (
+            1 - len(picks & prev_picks) / TOP_N if prev_picks is not None else 1.0
+        )
+        cost_drag = turnover * 2 * COST_ONE_WAY * 100 / LOOK_FORWARD
+        excess_return_net = excess_return - cost_drag
+
         half_n = max(1, len(current_df) // 2)
         top_half = current_df.head(half_n)
         top_half_hit = float(
@@ -457,6 +471,8 @@ def main():
             "actual_avg": actual_avg,
             "market_avg": market_avg,
             "excess_return": excess_return,
+            "excess_return_net": excess_return_net,
+            "turnover": turnover,
             "positive_rate": positive_rate,
             "outperform_market": int(outperform_market),
             "direction_accuracy": direction_accuracy,
@@ -506,6 +522,8 @@ def main():
     max_drawdown = calculate_max_drawdown(strategy_df["actual_avg"])
 
     average_excess = float(strategy_df["excess_return"].mean())
+    average_excess_net = float(strategy_df["excess_return_net"].mean())
+    average_turnover = float(strategy_df["turnover"].mean())
     average_actual = float(strategy_df["actual_avg"].mean())
     average_market = float(strategy_df["market_avg"].mean())
 
@@ -623,6 +641,9 @@ def main():
     print()
     print("【V5.9 策略績效分析】")
     print(f"平均超額報酬：{average_excess:.2f}%")
+    print(f"平均超額報酬（扣 {COST_ONE_WAY * 100:.1f}% 單邊成本）：{average_excess_net:.2f}%")
+    print(f"成本拖累（子組合平均）：{average_excess - average_excess_net:.3f}%")
+    print(f"平均換手率：{average_turnover * 100:.2f}%")
 
     if pd.isna(max_drawdown):
         print("最大回撤：N/A（重疊 forward return 不直接計算）")

@@ -3,8 +3,9 @@
 資料：adjusted_prices.csv（還原收盤價）+ StockPrice（成交量）。
 流程：
 1. 特徵皆為截面排名，只使用當日及之前的資料。
-2. 基準：全體等權、20 日動能、5 日反轉、低波動；模型：LightGBM（截面去中位數目標）。
-3. 每 20 個交易日調倉一次，Top-5 / Top-10，扣除單邊 0.1% 與 0.3% 成本。
+2. 基準：20 日動能、5 日反轉、低波動；模型：LightGBM（截面去中位數目標）；混合：ML 與 mom20 排名等權平均。
+   ML 超參數只在開發期以時間序列分割（含 embargo）選擇。
+3. 每 20 個交易日調倉一次（另做每 40 日敏感度），Top-5 / Top-10，扣除單邊 0.1% 與 0.3% 成本。
 4. 最後 126 個交易日為保留期間（holdout），僅作最終報告，不用於調參。
 
 用法：python scripts/evaluate_ranking.py
@@ -67,6 +68,13 @@ LGB_PARAMS = {
     "seed": RANDOM_SEED,
 }
 N_ESTIMATORS = 300
+TUNE_SPLITS = 4
+TUNE_GRID = [
+    {"num_leaves": nl, "min_child_samples": mc}
+    for nl in (7, 15, 31)
+    for mc in (100, 200, 400)
+]
+SENSITIVITY_STEP = 40
 
 
 # =========================================================
@@ -147,7 +155,7 @@ def build_panel(raw):
 ML_FEATURES = [f"{c}_cs" for c in FEATURES]
 
 
-def train_model(panel, train_end_idx):
+def train_model(panel, train_end_idx, params=None):
     train = panel[
         panel["liquid"]
         & panel["y"].notna()
@@ -155,29 +163,63 @@ def train_model(panel, train_end_idx):
     ]
 
     model = lgb.train(
-        LGB_PARAMS,
+        params or LGB_PARAMS,
         lgb.Dataset(train[ML_FEATURES], label=train["y"]),
         num_boost_round=N_ESTIMATORS,
     )
     return model
 
 
-def add_ml_scores(panel, start_idx, end_idx):
+def add_ml_scores(panel, start_idx, end_idx, params=None, col="ml"):
     """walk-forward：每 RETRAIN_EVERY 日重訓一次，訓練資料只用標籤已結束且超過 embargo 的列。"""
-    panel["ml"] = np.nan
+    panel[col] = np.nan
 
     chunk_start = start_idx
 
     while chunk_start <= end_idx:
         chunk_end = min(chunk_start + RETRAIN_EVERY - 1, end_idx)
-        model = train_model(panel, chunk_start - EMBARGO - 1)
+        model = train_model(panel, chunk_start - EMBARGO - 1, params)
 
         mask = panel["date_idx"].between(chunk_start, chunk_end)
-        panel.loc[mask, "ml"] = model.predict(panel.loc[mask, ML_FEATURES])
+        panel.loc[mask, col] = model.predict(panel.loc[mask, ML_FEATURES])
 
         chunk_start = chunk_end + 1
 
+    panel[f"{col}_cs"] = panel.groupby("date")[col].rank(pct=True)
+
     return panel
+
+
+def tune_params(panel, dev_start, dev_end):
+    """只在開發期內做時間序列分割（含 embargo）選超參數，保留期不參與。"""
+    upto = panel[panel["date_idx"] <= dev_end]
+    edges = np.linspace(dev_start, dev_end + 1, TUNE_SPLITS + 2).astype(int)
+
+    rows = []
+
+    for combo in TUNE_GRID:
+        params = {**LGB_PARAMS, **combo}
+        fold_ics = []
+
+        for k in range(1, TUNE_SPLITS + 1):
+            val_start, val_end = edges[k], edges[k + 1] - 1
+            model = train_model(upto, val_start - EMBARGO - 1, params)
+
+            val = upto[upto["date_idx"].between(val_start, val_end)].copy()
+            val["_p"] = model.predict(val[ML_FEATURES])
+            ic = daily_ic(val, "_p", pd.Series(True, index=val.index))
+            fold_ics.append(ic.mean())
+
+        rows.append({**combo, "cv_IC_mean": np.nanmean(fold_ics)})
+
+    result = pd.DataFrame(rows).sort_values("cv_IC_mean", ascending=False)
+    best = result.iloc[0]
+    best_params = {
+        **LGB_PARAMS,
+        "num_leaves": int(best["num_leaves"]),
+        "min_child_samples": int(best["min_child_samples"]),
+    }
+    return best_params, result
 
 
 # =========================================================
@@ -217,11 +259,11 @@ def daily_ic(panel, score_col, date_mask, min_names=10):
     return pd.Series(ics, dtype=float)
 
 
-def evaluate_strategy(panel, score_col, idx_start, idx_end, top_n):
+def evaluate_strategy(panel, score_col, idx_start, idx_end, top_n, step=REBALANCE_STEP):
     """回傳每次調倉的淨超額報酬、換手率與毛報酬。"""
     dates = sorted(panel["date_idx"].unique())
     rebalance_idx = [
-        i for i in range(idx_start, idx_end + 1, REBALANCE_STEP)
+        i for i in range(idx_start, idx_end + 1, step)
     ]
 
     records = []
@@ -295,7 +337,7 @@ def summarize(name, top_n, ic_series, rec):
     return summary
 
 
-def run_period(panel, label, idx_start, idx_end):
+def run_period(panel, label, idx_start, idx_end, step=REBALANCE_STEP, names=None):
     results = []
 
     strategies = {
@@ -303,17 +345,25 @@ def run_period(panel, label, idx_start, idx_end):
         "rev5": 1 - panel["mom5_cs"],
         "lowvol": 1 - panel["vol20_cs"],
         "ml": panel["ml"],
+        "blend": panel["blend"],
     }
+    if "ml_tuned" in panel.columns:
+        strategies["ml_tuned"] = panel["ml_tuned"]
+        strategies["blend_tuned"] = panel["blend_tuned"]
 
     for name, score in strategies.items():
+        if names and name not in names:
+            continue
+
         panel["_score"] = score
         date_mask = panel["date_idx"].between(idx_start, idx_end)
         ic = daily_ic(panel, "_score", date_mask)
 
         for top_n in TOP_NS:
-            rec = evaluate_strategy(panel, "_score", idx_start, idx_end, top_n)
+            rec = evaluate_strategy(panel, "_score", idx_start, idx_end, top_n, step)
             row = summarize(name, top_n, ic, rec)
             row["period"] = label
+            row["rebalance_step"] = step
             results.append(row)
 
     return results
@@ -393,6 +443,20 @@ def main():
 
     panel = add_ml_scores(panel, DEV_START_INDEX, n_dates - LOOK_FORWARD - 1)
 
+    tuned_params, tune_table = tune_params(panel, DEV_START_INDEX, dev_end)
+    print()
+    print("超參數搜尋（僅開發期，時間序列分割＋embargo，依 cv_IC_mean 排序）：")
+    print(tune_table.round(4).to_string(index=False))
+    print(f"選定：num_leaves={tuned_params['num_leaves']}, min_child_samples={tuned_params['min_child_samples']}")
+
+    panel = add_ml_scores(
+        panel, DEV_START_INDEX, n_dates - LOOK_FORWARD - 1,
+        params=tuned_params, col="ml_tuned",
+    )
+    # 混合分數：ML 截面百分位與 mom20 截面百分位等權平均
+    panel["blend"] = (panel["ml_cs"] + panel["mom20_cs"]) / 2
+    panel["blend_tuned"] = (panel["ml_tuned_cs"] + panel["mom20_cs"]) / 2
+
     full_end = n_dates - LOOK_FORWARD - 1
 
     results = []
@@ -400,6 +464,12 @@ def main():
     results += run_period(panel, "full", DEV_START_INDEX, full_end)
     results += run_period(panel, "dev", DEV_START_INDEX, dev_end)
     results += run_period(panel, "holdout", holdout_start, full_end)
+
+    # 換股頻率敏感度：每 40 日調倉，檢查換手降低時準確率是否跟著下降
+    results += run_period(
+        panel, "full", DEV_START_INDEX, full_end,
+        step=SENSITIVITY_STEP, names=["mom20", "ml", "blend", "ml_tuned", "blend_tuned"],
+    )
 
     out = pd.DataFrame(results)
     os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
@@ -415,10 +485,15 @@ def main():
     print(pd.DataFrame(ic_by_asset_type(panel, DEV_START_INDEX, n_dates - LOOK_FORWARD - 1)).round(4).to_string(index=False))
 
     print()
-    print("ML 與 mom20 配對比較（完整期間，正值代表 ML 較好）：")
-    pair = pd.DataFrame(paired_compare(
-        panel, DEV_START_INDEX, full_end, "ml", "mom20_cs", "ml_vs_mom20"
-    ))
+    print("配對比較（完整期間，正值代表前者較好）：")
+    pair_rows = []
+    for col_a, col_b, label in [
+        ("ml", "mom20_cs", "ml_vs_mom20"),
+        ("blend", "mom20_cs", "blend_vs_mom20"),
+        ("ml_tuned", "ml", "ml_tuned_vs_ml"),
+    ]:
+        pair_rows += paired_compare(panel, DEV_START_INDEX, full_end, col_a, col_b, label)
+    pair = pd.DataFrame(pair_rows)
     print(pair.round(4).to_string(index=False))
     pair.to_csv(PAIRED_OUTPUT_PATH, index=False, encoding="utf-8-sig")
 
