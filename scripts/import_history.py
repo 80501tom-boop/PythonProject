@@ -463,9 +463,8 @@ def get_tpex_month_data(stock_code, yyyymm):
     if not isinstance(tables, list):
         raise MarketDataError("TPEx 回傳缺少有效的 tables 清單")
 
-    required_fields = {
-        "日 期", "成交張數", "開盤", "最高", "最低", "收盤"
-    }
+    required_fields = {"日 期", "開盤", "最高", "最低", "收盤"}
+    volume_fields = ("成交張數", "成交仟股")
     price_table = None
 
     for table in tables:
@@ -478,6 +477,7 @@ def get_tpex_month_data(stock_code, yyyymm):
             isinstance(fields, list)
             and all(isinstance(field, str) for field in fields)
             and required_fields.issubset(fields)
+            and any(name in fields for name in volume_fields)
         ):
             price_table = table
             break
@@ -488,6 +488,7 @@ def get_tpex_month_data(stock_code, yyyymm):
         )
 
     fields = price_table["fields"]
+    volume_field = next(name for name in volume_fields if name in fields)
     rows = price_table.get("data")
 
     if not isinstance(rows, list):
