@@ -37,6 +37,7 @@ from config import POOL_BY_SYMBOL, POOL_SYMBOLS  # noqa: E402
 
 ADJUSTED_PATH = os.path.join(BASE_DIR, "adjusted_prices.csv")
 OUTPUT_PATH = os.path.join(BASE_DIR, "myapp", "ml", "output", "ranking_evaluation.csv")
+PAIRED_OUTPUT_PATH = os.path.join(BASE_DIR, "myapp", "ml", "output", "ranking_paired_compare.csv")
 
 LOOK_FORWARD = 20
 REBALANCE_STEP = 20
@@ -329,6 +330,45 @@ def ic_by_asset_type(panel, idx_start, idx_end):
     return rows
 
 
+def paired_compare(panel, idx_start, idx_end, col_a, col_b, label):
+    """同一日期配對比較兩個分數：每日 IC 差與 Top-10 淨超額差，附 bootstrap 信賴區間。"""
+    rows = []
+
+    panel["_a"] = panel[col_a]
+    panel["_b"] = panel[col_b]
+    date_mask = panel["date_idx"].between(idx_start, idx_end)
+    ic_a = daily_ic(panel, "_a", date_mask)
+    ic_b = daily_ic(panel, "_b", date_mask)
+    ic_diff = (ic_a - ic_b).dropna()
+    lo, hi = bootstrap_ci(ic_diff.values)
+    rows.append({
+        "compare": label,
+        "metric": "daily_IC_diff",
+        "n": len(ic_diff),
+        "mean": ic_diff.mean(),
+        "ci_low": lo,
+        "ci_high": hi,
+    })
+
+    rec_a = evaluate_strategy(panel, "_a", idx_start, idx_end, 10)
+    rec_b = evaluate_strategy(panel, "_b", idx_start, idx_end, 10)
+    merged = rec_a[["date", "gross", "ew"]].merge(
+        rec_b[["date", "gross", "ew"]], on="date", suffixes=("_a", "_b")
+    )
+    diff = (merged["gross_a"] - merged["ew_a"]) - (merged["gross_b"] - merged["ew_b"])
+    lo, hi = bootstrap_ci(diff.values)
+    rows.append({
+        "compare": label,
+        "metric": "top10_excess_gross_diff",
+        "n": len(diff),
+        "mean": diff.mean(),
+        "ci_low": lo,
+        "ci_high": hi,
+    })
+
+    return rows
+
+
 def main():
     raw = load_panel()
     panel, n_dates = build_panel(raw)
@@ -365,6 +405,14 @@ def main():
     print()
     print("ML 依資產類型的 IC（開發期＋保留期合併）：")
     print(pd.DataFrame(ic_by_asset_type(panel, DEV_START_INDEX, n_dates - LOOK_FORWARD - 1)).round(4).to_string(index=False))
+
+    print()
+    print("ML 與 mom20 配對比較（完整期間，正值代表 ML 較好）：")
+    pair = pd.DataFrame(paired_compare(
+        panel, DEV_START_INDEX, full_end, "ml", "mom20_cs", "ml_vs_mom20"
+    ))
+    print(pair.round(4).to_string(index=False))
+    pair.to_csv(PAIRED_OUTPUT_PATH, index=False, encoding="utf-8-sig")
 
     print()
     print(f"輸出：{OUTPUT_PATH}")
