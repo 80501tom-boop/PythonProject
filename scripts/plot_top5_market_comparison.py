@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-V5.7 - Top-5 策略與 13 檔股票基準比較
+V5.7 - Top-10 策略與 13 檔股票基準比較
 
 功能：
 1. 讀取 market_backtest.csv。
 2. 讀取 market_strategy_detail.csv。
-3. 比較 Top-5 策略與 13 檔股票基準的實際報酬。
+3. 比較 Top-10 策略與 13 檔股票基準的實際報酬。
 4. 輸出比較圖表 PNG、PDF 與 CSV。
 5. 顯示中文統計摘要。
 
@@ -79,7 +79,7 @@ def load_comparison_data():
     # 讀取原有回測資料
     backtest_df = pd.read_csv(BACKTEST_FILE)
 
-    # 讀取 Top-5 策略明細
+    # 讀取 Top-10 策略明細
     strategy_df = pd.read_csv(STRATEGY_DETAIL_FILE)
 
     required_columns = {
@@ -141,7 +141,7 @@ def load_comparison_data():
         subset=["date", "symbol", "actual_return_20"]
     )
 
-    # 每個回測日期的 Top-5 平均實際報酬
+    # 每個回測日期的 Top-10 平均實際報酬
     top5_returns = (
         strategy_df
         .groupby("date")["actual_return_20"]
@@ -172,7 +172,7 @@ def load_comparison_data():
             "請確認兩份 CSV 的日期資料。"
         )
 
-    # 超額報酬：Top-5 平均報酬減去股票基準平均報酬
+    # 超額報酬：Top-10 平均報酬減去股票基準平均報酬
     result["excess_return"] = (
         result["top5_avg_return"]
         - result["market_avg_return"]
@@ -202,7 +202,7 @@ def plot_comparison(result):
         marker="o",
         markersize=3,
         linewidth=1.8,
-        label="Top-5 Strategy",
+        label="Top-10 Strategy",
     )
 
     ax.plot(
@@ -222,7 +222,7 @@ def plot_comparison(result):
     )
 
     ax.set_title(
-        "Top-5 Strategy vs. 13-Stock Benchmark",
+        "Top-10 Strategy vs. 13-Stock Benchmark",
         fontsize=15,
         pad=14,
     )
@@ -315,9 +315,9 @@ def print_summary(result, backtest_df):
     print("\n各回測日期的股票數量：")
     print(stock_counts.value_counts().sort_index())
 
-    print("\n========== Top-5 與股票基準比較 ==========")
+    print("\n========== Top-10 與股票基準比較 ==========")
     print(f"比較日期數：{len(result)}")
-    print(f"Top-5 平均報酬：{top5_mean:.2f}%")
+    print(f"Top-10 平均報酬：{top5_mean:.2f}%")
     print(f"13 檔股票基準平均報酬：{market_mean:.2f}%")
     print(f"平均超額報酬：{excess_mean:+.2f} 個百分點")
     print(
@@ -333,7 +333,7 @@ def print_summary(result, backtest_df):
 
 def main():
 
-    print("開始比較 Top-5 策略與 13 檔股票基準...")
+    print("開始比較 Top-10 策略與 13 檔股票基準...")
 
     result, backtest_df = load_comparison_data()
 
@@ -354,7 +354,7 @@ def main():
     print_summary(result, backtest_df)
 
     print(f"比較資料已輸出：{CSV_FILE}")
-    print("完成：Top-5 與 13 檔股票基準比較。")
+    print("完成：Top-10 與 13 檔股票基準比較。")
 
 
 if __name__ == "__main__":

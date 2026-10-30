@@ -16,6 +16,8 @@ from django.core.paginator import Paginator
 from django.shortcuts import render, redirect
 from django.views.decorators.http import require_POST
 
+from config import TOP_N
+
 from .models import Stock, StockPrice, PredictionHistory
 
 from scripts.import_history import (
@@ -77,7 +79,7 @@ def index(request):
             latest_model_version = first_prediction.model_version
 
         latest_predictions = list(
-            prediction_queryset[:5].values(
+            prediction_queryset[:TOP_N].values(
                 "prediction_date",
                 "data_date",
                 "symbol",
@@ -1129,7 +1131,7 @@ def market_strategy(request):
     # ==========================================
 
     summary = {
-        "top_n": 5,
+        "top_n": TOP_N,
         "backtest_periods": 0,
         "start_date": "",
         "end_date": "",
@@ -1478,7 +1480,7 @@ def market_strategy(request):
             error = f"Summary 讀取失敗：{e}"
 
     # ==========================================
-    # 3. 讀取 Top-5 選股明細
+    # 3. 讀取 Top-N 選股明細
     # ==========================================
 
     try:
@@ -1507,7 +1509,7 @@ def market_strategy(request):
 
                 if missing_detail:
                     raise ValueError(
-                        "Top-5 明細缺少欄位："
+                        f"Top-{TOP_N} 明細缺少欄位："
                         + ", ".join(missing_detail)
                     )
 
@@ -1609,7 +1611,7 @@ def market_strategy(request):
     except Exception as e:
 
         if not error:
-            error = f"Top-5 明細讀取失敗：{e}"
+            error = f"Top-{TOP_N} 明細讀取失敗：{e}"
 
     # ==========================================
     # 4. Template Context
@@ -1690,7 +1692,7 @@ def prediction_performance(request):
         evaluated_at__isnull=True
     ).count()
 
-    # 依預測批次統計 Top 5 實際報酬
+    # 依預測批次統計 Top-N 實際報酬
     batch_dates = sorted(
         {row.prediction_date for row in records},
         reverse=True,
@@ -1704,19 +1706,19 @@ def prediction_performance(request):
             if row.prediction_date == batch_date
         ]
 
-        top5 = sorted(
+        topn = sorted(
             batch_records,
             key=lambda row: (
                 row.rank if row.rank is not None else 999999
             ),
-        )[:5]
+        )[:TOP_N]
 
-        if not top5:
+        if not topn:
             continue
 
-        top5_returns = [
+        topn_returns = [
             float(row.actual_return_20)
-            for row in top5
+            for row in topn
             if row.actual_return_20 is not None
         ]
 
@@ -1728,16 +1730,16 @@ def prediction_performance(request):
 
         batch_performance.append({
             "prediction_date": batch_date,
-            "top5_count": len(top5_returns),
-            "top5_actual_avg": (
-                sum(top5_returns) / len(top5_returns)
-                if top5_returns else None
+            "topn_count": len(topn_returns),
+            "topn_actual_avg": (
+                sum(topn_returns) / len(topn_returns)
+                if topn_returns else None
             ),
             "universe_actual_avg": (
                 sum(all_returns) / len(all_returns)
                 if all_returns else None
             ),
-            "top5_stocks": top5,
+            "topn_stocks": topn,
         })
     # 最近 30 筆預測紀錄，包含尚未完成評估的資料
     recent_records = list(

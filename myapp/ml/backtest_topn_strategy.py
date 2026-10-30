@@ -6,7 +6,7 @@ V5.9 - Top-N 股票選股策略回測
 功能：
 1. 讀取 market_backtest.csv
 2. 每個回測日期依 predicted_return_20 由高到低排序
-3. 選出 Top-N 股票（預設 Top-5）
+3. 選出 Top-N 股票（預設 Top-10）
 4. 計算 Top-N 預測平均報酬
 5. 計算 Top-N 實際平均報酬
 6. 計算全市場平均實際報酬

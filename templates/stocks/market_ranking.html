@@ -98,7 +98,7 @@
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
         }
 
-        /* Top 5 */
+        /* Top 10 */
 
         .top-grid {
             display: grid;
@@ -372,11 +372,11 @@
 
     {% if ranking %}
 
-    <!-- Top 5 精選區 -->
+    <!-- Top 10 精選區 -->
     <section class="section">
 
         <div class="section-title">
-            <h2>Top 5 精選排名</h2>
+            <h2>Top 10 精選排名</h2>
             <span class="section-subtitle">
                 依預測 20 日報酬率由高至低排列
             </span>
@@ -385,7 +385,7 @@
         <div class="top-grid">
 
             {% for stock in ranking %}
-                {% if forloop.counter <= 5 %}
+                {% if forloop.counter <= 10 %}
 
                 <div class="top-card">
 
