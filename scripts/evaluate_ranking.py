@@ -40,6 +40,7 @@ OUTPUT_PATH = os.path.join(BASE_DIR, "myapp", "ml", "output", "ranking_evaluatio
 PAIRED_OUTPUT_PATH = os.path.join(BASE_DIR, "myapp", "ml", "output", "ranking_paired_compare.csv")
 
 LOOK_FORWARD = 20
+BENCHMARK_SYMBOL = "0050"
 REBALANCE_STEP = 20
 TOP_NS = (5, 10)
 COSTS_ONE_SIDE = (0.001, 0.003)
@@ -116,6 +117,12 @@ def build_panel(raw):
     p["liquid"] = p["vma20"] >= MIN_AVG_VOLUME_20
 
     p["fwd20"] = g["adj_close"].shift(-LOOK_FORWARD) / p["adj_close"] - 1
+
+    # 基準為 0050 的未來 20 日報酬；0050 不參與選股候選
+    bench = p.loc[p["symbol"] == BENCHMARK_SYMBOL, ["date", "fwd20"]].rename(
+        columns={"fwd20": "bench20"}
+    )
+    p = p[p["symbol"] != BENCHMARK_SYMBOL].merge(bench, on="date", how="left")
 
     p = p.sort_values(["date", "symbol"]).reset_index(drop=True)
 
@@ -225,6 +232,7 @@ def evaluate_strategy(panel, score_col, idx_start, idx_end, top_n):
             (panel["date_idx"] == ridx)
             & panel["liquid"]
             & panel["fwd20"].notna()
+            & panel["bench20"].notna()
             & panel[score_col].notna()
         ].set_index("symbol")
 
@@ -235,7 +243,7 @@ def evaluate_strategy(panel, score_col, idx_start, idx_end, top_n):
         turnover = 1 - len(set(picks) & set(prev)) / top_n if prev else 1.0
 
         gross = snap.loc[picks, "fwd20"].mean()
-        ew = snap["fwd20"].mean()
+        bench = snap["bench20"].iloc[0]
         decile = max(1, int(round(len(snap) * 0.1)))
         bottom = snap["fwd20"].nsmallest(decile).mean()
         top_decile = snap["fwd20"].nlargest(decile).mean()
@@ -243,16 +251,16 @@ def evaluate_strategy(panel, score_col, idx_start, idx_end, top_n):
         rec = {
             "date": dates[ridx],
             "gross": gross,
-            "ew": ew,
+            "bench": bench,
             "spread": top_decile - bottom,
             "turnover": turnover,
-            "beat_market": float(gross > ew),
+            "beat_market": float(gross > bench),
             "positive": float(gross > 0),
         }
 
         for cost in COSTS_ONE_SIDE:
             net = gross - turnover * 2 * cost
-            rec[f"excess_net_{cost}"] = net - ew
+            rec[f"excess_net_{cost}"] = net - bench
 
         records.append(rec)
         prev = picks
@@ -352,10 +360,10 @@ def paired_compare(panel, idx_start, idx_end, col_a, col_b, label):
 
     rec_a = evaluate_strategy(panel, "_a", idx_start, idx_end, 10)
     rec_b = evaluate_strategy(panel, "_b", idx_start, idx_end, 10)
-    merged = rec_a[["date", "gross", "ew"]].merge(
-        rec_b[["date", "gross", "ew"]], on="date", suffixes=("_a", "_b")
+    merged = rec_a[["date", "gross", "bench"]].merge(
+        rec_b[["date", "gross", "bench"]], on="date", suffixes=("_a", "_b")
     )
-    diff = (merged["gross_a"] - merged["ew_a"]) - (merged["gross_b"] - merged["ew_b"])
+    diff = (merged["gross_a"] - merged["bench_a"]) - (merged["gross_b"] - merged["bench_b"])
     lo, hi = bootstrap_ci(diff.values)
     rows.append({
         "compare": label,
