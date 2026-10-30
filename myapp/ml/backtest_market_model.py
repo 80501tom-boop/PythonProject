@@ -56,6 +56,28 @@ django.setup()
 
 from myapp.models import Stock, StockPrice
 
+from config import POOL_SYMBOLS, is_eligible
+
+ADJUSTED_PATH = os.path.join(BASE_DIR, "adjusted_prices.csv")
+_ADJUSTED_CACHE = {}
+
+
+def load_adjusted_prices(symbol):
+    """讀取 adjust_prices.py 產生的還原收盤價（date, adj_close）。"""
+    if not os.path.exists(ADJUSTED_PATH):
+        raise FileNotFoundError(
+            f"找不到 {ADJUSTED_PATH}，請先執行 scripts/adjust_prices.py"
+        )
+
+    if _ADJUSTED_CACHE.get("df") is None:
+        adj = pd.read_csv(ADJUSTED_PATH, dtype={"symbol": str})
+        adj["symbol"] = adj["symbol"].str.strip()
+        adj["date"] = pd.to_datetime(adj["date"])
+        _ADJUSTED_CACHE["df"] = adj
+
+    adj = _ADJUSTED_CACHE["df"]
+    return adj.loc[adj["symbol"] == symbol, ["date", "adj_close"]]
+
 
 # =========================================================
 # 設定
@@ -148,6 +170,23 @@ def get_stock_data(stock):
 
     df["date"] = pd.to_datetime(
         df["date"]
+    )
+
+    # 使用還原收盤價計算特徵與未來報酬，避免除權息與分割造成假跳動
+    df = df.merge(
+        load_adjusted_prices(str(stock.symbol).strip()),
+        on="date",
+        how="left",
+    )
+
+    df = df.dropna(
+        subset=["adj_close"]
+    )
+
+    df["close"] = df["adj_close"]
+
+    df = df.drop(
+        columns=["adj_close"]
     )
 
     return df
@@ -314,7 +353,7 @@ def build_market_dataset():
 
     stocks = (
         Stock.objects
-        .all()
+        .filter(symbol__in=POOL_SYMBOLS)
         .order_by("symbol")
     )
 
@@ -386,6 +425,19 @@ def build_market_dataset():
 
         if df.empty:
             print("  -> Skip: low liquidity")
+            continue
+
+        # Point-in-time：新增股票只能從首次納入日之後被選取
+        symbol_code = str(stock.symbol).strip()
+
+        eligible_mask = df["date"].apply(
+            lambda d: is_eligible(symbol_code, pd.Timestamp(d).date())
+        )
+
+        df = df[eligible_mask].copy()
+
+        if df.empty:
+            print("  -> Skip: not yet in pool")
             continue
 
         df["symbol"] = (
