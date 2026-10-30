@@ -69,6 +69,8 @@ STOCK_POOL = [
 
 POOL_SYMBOLS = [item["symbol"] for item in STOCK_POOL]
 
+TOP_N = 10
+
 POOL_BY_SYMBOL = {item["symbol"]: item for item in STOCK_POOL}
 
 POOL_HISTORY_PATH = os.path.join(

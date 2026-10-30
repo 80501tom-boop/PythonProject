@@ -71,7 +71,7 @@ from myapp.models import Stock, StockPrice
 
 from myapp.models import PredictionHistory
 
-from config import POOL_SYMBOLS, is_eligible
+from config import POOL_SYMBOLS, TOP_N, is_eligible
 
 ADJUSTED_PATH = os.path.join(BASE_DIR, "adjusted_prices.csv")
 _ADJUSTED_CACHE = {}
@@ -82,8 +82,6 @@ _ADJUSTED_CACHE = {}
 LOOK_FORWARD = 20
 
 MIN_DATA_LENGTH = 120
-
-TOP_N = 5
 
 MODEL_VERSION = "V5.8-FORWARD"
 
@@ -1234,7 +1232,7 @@ def save_prediction(result_df):
     print(f"預測股票數：{len(export_df)}")
 
     print()
-    print("Top 5：")
+    print(f"Top {TOP_N}：")
 
     print(
         ranking_df.head(TOP_N).to_string(
