@@ -71,6 +71,10 @@ POOL_SYMBOLS = [item["symbol"] for item in STOCK_POOL]
 
 TOP_N = 10
 
+# False：只要在股票池內且當天有資料即納入排名（不看首次納入日）
+# True ：依 data/pool_history.csv 的 pool_start 做 point-in-time 過濾
+USE_POOL_START = False
+
 POOL_BY_SYMBOL = {item["symbol"]: item for item in STOCK_POOL}
 
 POOL_HISTORY_PATH = os.path.join(
@@ -102,14 +106,18 @@ _load_pool_start()
 
 
 def is_eligible(symbol, day):
-    """回傳某股票在指定日期是否可被選取（point-in-time）。
+    """回傳某股票在指定日期是否可被選取。
 
-    未知代號或 pool_start 晚於 day 的股票皆不可選。
+    USE_POOL_START=False 時，只要是股票池內的股票即可選取
+    （資料列本身即代表當日已上市櫃）。
     """
     item = POOL_BY_SYMBOL.get(symbol)
 
     if item is None:
         return False
+
+    if not USE_POOL_START:
+        return True
 
     start = item["pool_start"]
 
