@@ -85,6 +85,8 @@ def load_adjusted_prices(symbol):
 
 LOOK_FORWARD = 20
 
+BENCHMARK_SYMBOL = "0050"
+
 MIN_DATA_LENGTH = 120
 
 # 逐日流動性門檻（20 日平均成交量，股）
@@ -462,6 +464,16 @@ def build_market_dataset():
         ignore_index=True
     )
 
+    # 基準：0050 同日的未來 20 日報酬；0050 不參與選股與訓練
+    bench = market_df.loc[
+        market_df["symbol"] == BENCHMARK_SYMBOL,
+        ["date", "future_return_20"]
+    ].rename(columns={"future_return_20": "bench_return_20"})
+
+    market_df = market_df[
+        market_df["symbol"] != BENCHMARK_SYMBOL
+    ].merge(bench, on="date", how="left")
+
     return market_df
 
 
@@ -709,6 +721,7 @@ def run_single_backtest(
             "actual_return_20",
             "prediction_error",
             "return_20",
+            "bench_return_20",
         ]
     ]
 
@@ -975,6 +988,9 @@ def save_backtest_csv(
 
     # 並列對照：mom20 欄位（過去 20 日漲幅，百分比）
     export_df["return_20"] *= 100
+
+    # 基準：0050 的實際 20 日報酬（百分比）
+    export_df["bench_return_20"] *= 100
 
     export_df.to_csv(
         output_file,

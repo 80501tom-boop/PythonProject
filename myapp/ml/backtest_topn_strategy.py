@@ -9,8 +9,8 @@ V5.9 - Top-N 股票選股策略回測
 3. 選出 Top-N 股票（預設 Top-10）
 4. 計算 Top-N 預測平均報酬
 5. 計算 Top-N 實際平均報酬
-6. 計算全市場平均實際報酬
-7. 計算 Top-N 相對於市場的超額報酬
+6. 計算 0050 同期實際報酬（市場基準）
+7. 計算 Top-N 相對於 0050 的超額報酬
 8. 計算正報酬比例
 9. 計算超越市場比例
 10. 計算預測方向正確率（排除 actual_return_20 = 0）
@@ -154,6 +154,7 @@ def validate_backtest_input(df, top_n):
         "symbol",
         "predicted_return_20",
         "actual_return_20",
+        "bench_return_20",
     ]
 
     missing_columns = [
@@ -264,7 +265,7 @@ def run_mom20_benchmark(df):
         ).head(TOP_N)
 
         actual_avg = float(top_df["actual_return_20"].mean())
-        market_avg = float(current_df["actual_return_20"].mean())
+        market_avg = float(current_df["bench_return_20"].iloc[0])
 
         rows.append({
             "date": pd.Timestamp(backtest_date).strftime("%Y-%m-%d"),
@@ -311,6 +312,7 @@ def main():
         "symbol",
         "predicted_return_20",
         "actual_return_20",
+        "bench_return_20",
     ]
 
     missing_columns = [
@@ -348,6 +350,7 @@ def main():
             "symbol",
             "predicted_return_20",
             "actual_return_20",
+            "bench_return_20",
         ]
     ).copy()
 
@@ -401,7 +404,7 @@ def main():
 
         predicted_avg = float(top_df["predicted_return_20"].mean())
         actual_avg = float(top_df["actual_return_20"].mean())
-        market_avg = float(current_df["actual_return_20"].mean())
+        market_avg = float(current_df["bench_return_20"].iloc[0])
         excess_return = actual_avg - market_avg
 
         positive_rate = float(
@@ -609,7 +612,7 @@ def main():
     print("【回測統計】")
     print(f"回測期間數：{backtest_periods}")
     print(f"Top-{TOP_N} 平均實際報酬：{average_actual:.2f}%")
-    print(f"全市場平均實際報酬：{average_market:.2f}%")
+    print(f"0050 平均實際報酬（基準）：{average_market:.2f}%")
     print(f"平均超額報酬：{average_excess:.2f}%")
     print(f"Top-{TOP_N} 正報酬比例：{positive_return_rate:.2f}%")
     print(f"Top-{TOP_N} 超越市場比例：{outperform_rate:.2f}%")
