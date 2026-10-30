@@ -6,6 +6,8 @@
 不依賴 Django，可被 scripts/ 與 myapp/ml/ 直接匯入。
 """
 
+import csv
+import os
 from datetime import date
 
 
@@ -68,6 +70,33 @@ STOCK_POOL = [
 POOL_SYMBOLS = [item["symbol"] for item in STOCK_POOL]
 
 POOL_BY_SYMBOL = {item["symbol"]: item for item in STOCK_POOL}
+
+POOL_HISTORY_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "data",
+    "pool_history.csv",
+)
+
+
+def _load_pool_start():
+    """從 data/pool_history.csv 讀取 pool_start（空白表示資料起點即納入）。"""
+    if not os.path.exists(POOL_HISTORY_PATH):
+        return
+
+    with open(POOL_HISTORY_PATH, encoding="utf-8", newline="") as f:
+        for row in csv.DictReader(f):
+            item = POOL_BY_SYMBOL.get(row["symbol"].strip())
+
+            if item is None:
+                continue
+
+            value = (row.get("pool_start") or "").strip()
+            item["pool_start"] = (
+                date.fromisoformat(value) if value else None
+            )
+
+
+_load_pool_start()
 
 
 def is_eligible(symbol, day):
