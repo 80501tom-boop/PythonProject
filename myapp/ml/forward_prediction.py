@@ -968,6 +968,13 @@ def predict_latest(
         current_df.index + 1
     )
 
+    # 並列對照：mom20 = 過去 20 日漲幅排名（僅作對照，不取代主排名）
+    current_df["rank_mom20"] = (
+        current_df["return_20"]
+        .rank(ascending=False, method="first")
+        .astype(int)
+    )
+
     # --------------------------------------------------------
     # Prediction 日期
     # --------------------------------------------------------
@@ -1149,10 +1156,14 @@ def save_prediction(result_df):
             "close",
             "predicted_return_20",
             "rank",
+            "rank_mom20",
+            "return_20",
             "model_version",
             "horizon",
         ]
     ].copy()
+
+    export_df["return_20"] = export_df["return_20"] * 100
 
     export_df["prediction_date"] = (
         pd.to_datetime(
@@ -1232,12 +1243,21 @@ def save_prediction(result_df):
     print(f"預測股票數：{len(export_df)}")
 
     print()
-    print(f"Top {TOP_N}：")
+    print(f"Top {TOP_N}（LightGBM 主排名）：")
 
     print(
         ranking_df.head(TOP_N).to_string(
             index=False
         )
+    )
+
+    print()
+    print(f"Top {TOP_N}（mom20 並列對照）：")
+
+    print(
+        export_df.sort_values("rank_mom20")[
+            ["rank_mom20", "symbol", "stock_name", "close_price", "return_20"]
+        ].head(TOP_N).to_string(index=False)
     )
 
 

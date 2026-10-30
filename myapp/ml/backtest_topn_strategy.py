@@ -246,6 +246,41 @@ def calc_rank_ic(current_df):
 # 主程式
 # ============================================================
 
+def run_mom20_benchmark(df):
+    """並列對照：以 return_20（過去 20 日漲幅）取 Top-N，與 ML 主排名同日期比較。"""
+    if "return_20" not in df.columns:
+        return None
+
+    rows = []
+
+    for backtest_date, current_df in df.groupby("date"):
+        current_df = current_df.dropna(subset=["return_20"])
+
+        if len(current_df) < TOP_N:
+            continue
+
+        top_df = current_df.sort_values(
+            "return_20", ascending=False
+        ).head(TOP_N)
+
+        actual_avg = float(top_df["actual_return_20"].mean())
+        market_avg = float(current_df["actual_return_20"].mean())
+
+        rows.append({
+            "date": pd.Timestamp(backtest_date).strftime("%Y-%m-%d"),
+            "actual_avg": actual_avg,
+            "market_avg": market_avg,
+            "excess_return": actual_avg - market_avg,
+            "positive_rate": float((top_df["actual_return_20"] > 0).mean() * 100),
+            "outperform_market": int(actual_avg > market_avg),
+        })
+
+    if not rows:
+        return None
+
+    return pd.DataFrame(rows)
+
+
 def main():
 
     print()
@@ -452,6 +487,18 @@ def main():
     detail_df = detail_df.sort_values(
         ["date", "rank"]
     ).reset_index(drop=True)
+
+    mom20_df = run_mom20_benchmark(df)
+
+    if mom20_df is not None:
+        mom20_path = os.path.join(OUTPUT_DIR, "market_strategy_mom20_benchmark.csv")
+        mom20_df.to_csv(mom20_path, index=False, encoding="utf-8-sig")
+        print()
+        print(f"【mom20 並列對照】（期數 {len(mom20_df)}）")
+        print(f"Top-{TOP_N} 平均超額報酬：{mom20_df['excess_return'].mean():.2f}%")
+        print(f"超越市場比例：{mom20_df['outperform_market'].mean() * 100:.2f}%")
+        print(f"正報酬比例：{mom20_df['positive_rate'].mean():.2f}%")
+        print(f"輸出：{mom20_path}")
 
     max_drawdown = calculate_max_drawdown(strategy_df["actual_avg"])
 

@@ -708,6 +708,7 @@ def run_single_backtest(
             "predicted_return_20",
             "actual_return_20",
             "prediction_error",
+            "return_20",
         ]
     ]
 
@@ -971,6 +972,9 @@ def save_backtest_csv(
     export_df[
         "prediction_error"
     ] *= 100
+
+    # 並列對照：mom20 欄位（過去 20 日漲幅，百分比）
+    export_df["return_20"] *= 100
 
     export_df.to_csv(
         output_file,
