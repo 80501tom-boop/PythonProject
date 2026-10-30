@@ -72,6 +72,9 @@ from myapp.models import Stock, StockPrice
 from myapp.models import PredictionHistory
 
 from config import POOL_SYMBOLS, is_eligible
+
+ADJUSTED_PATH = os.path.join(BASE_DIR, "adjusted_prices.csv")
+_ADJUSTED_CACHE = {}
 # ============================================================
 # 基本設定
 # ============================================================
@@ -237,6 +240,23 @@ def calculate_rsi(
 # 股票資料
 # ============================================================
 
+def load_adjusted_prices(symbol):
+    """讀取 adjust_prices.py 產生的還原收盤價（date, adj_close）。"""
+    if not os.path.exists(ADJUSTED_PATH):
+        raise FileNotFoundError(
+            f"找不到 {ADJUSTED_PATH}，請先執行 scripts/adjust_prices.py"
+        )
+
+    if _ADJUSTED_CACHE.get("df") is None:
+        adj = pd.read_csv(ADJUSTED_PATH, dtype={"symbol": str})
+        adj["symbol"] = adj["symbol"].str.strip()
+        adj["date"] = pd.to_datetime(adj["date"])
+        _ADJUSTED_CACHE["df"] = adj
+
+    adj = _ADJUSTED_CACHE["df"]
+    return adj.loc[adj["symbol"] == symbol, ["date", "adj_close"]]
+
+
 def get_stock_data(stock):
 
     prices = StockPrice.objects.filter(
@@ -271,10 +291,17 @@ def get_stock_data(stock):
         errors="coerce"
     )
 
+    df = df.merge(
+        load_adjusted_prices(str(stock.symbol).strip()),
+        on="date",
+        how="left",
+    )
+
     df = df.dropna(
         subset=[
             "date",
             "close",
+            "adj_close",
             "volume"
         ]
     )
@@ -296,6 +323,10 @@ def get_stock_data(stock):
 def create_features(df):
 
     df = df.copy()
+
+    # 特徵與標籤使用還原收盤價；原始收盤價保留給輸出顯示
+    df["close_raw"] = df["close"]
+    df["close"] = df["adj_close"]
 
     # --------------------------------------------------------
     # 報酬率
@@ -343,6 +374,9 @@ def create_features(df):
         df["close"].shift(-LOOK_FORWARD) / df["close"] - 1
     )
     df["future_date_20"] = df["date"].shift(-LOOK_FORWARD)
+
+    df["close"] = df["close_raw"]
+    df = df.drop(columns=["close_raw", "adj_close"])
 
     return df
 
