@@ -55,6 +55,7 @@ from config import POOL_SYMBOLS
 DATA_DIR = os.path.join(BASE_DIR, "data")
 TWSE_DEFAULT = os.path.join(DATA_DIR, "twse_exright_2021_2026.csv")
 TPEX_DEFAULT = os.path.join(DATA_DIR, "tpex_exright_2021_2026.csv")
+MANUAL_DEFAULT = os.path.join(DATA_DIR, "manual_events.csv")
 
 ADJUSTED_PATH = os.path.join(BASE_DIR, "adjusted_prices.csv")
 EVENTS_PATH = os.path.join(BASE_DIR, "dividend_events.csv")
@@ -113,6 +114,29 @@ def load_tpex(path):
     return events
 
 
+def load_manual(path):
+    """讀取人工登錄的分割等事件；factor 留空者不套用，回傳待確認清單。"""
+    if not os.path.exists(path):
+        return pd.DataFrame(), []
+
+    df = pd.read_csv(path, dtype=str, encoding="utf-8-sig").fillna("")
+    pending = df[df["factor"].str.strip() == ""]
+    applied = df[df["factor"].str.strip() != ""]
+
+    events = pd.DataFrame({
+        "symbol": applied["symbol"].str.strip(),
+        "ex_date": pd.to_datetime(applied["ex_date"].str.strip()),
+        "prev_close": float("nan"),
+        "ref_price": float("nan"),
+        "source": "MANUAL",
+        "factor": applied["factor"].astype(float),
+    })
+    pending_list = [
+        f"{r.symbol} {r.ex_date}" for r in pending.itertuples(index=False)
+    ]
+    return events, pending_list
+
+
 def load_prices():
     rows = StockPrice.objects.filter(
         stock__symbol__in=POOL_SYMBOLS
@@ -127,7 +151,7 @@ def load_prices():
     return df.sort_values(["symbol", "date"]).reset_index(drop=True)
 
 
-def build_events(twse_path, tpex_path, symbols):
+def build_events(twse_path, tpex_path, symbols, manual_path=MANUAL_DEFAULT):
     events = pd.concat(
         [load_twse(twse_path), load_tpex(tpex_path)],
         ignore_index=True,
@@ -140,6 +164,24 @@ def build_events(twse_path, tpex_path, symbols):
     events = events.drop_duplicates(subset=["symbol", "ex_date"])
     events["factor"] = events["ref_price"] / events["prev_close"]
 
+    manual, pending = load_manual(manual_path)
+    manual = manual[manual["symbol"].isin(symbols)]
+    exchange_keys = set(zip(events["symbol"], events["ex_date"]))
+    dup = [
+        (s, d) for s, d in zip(manual["symbol"], manual["ex_date"])
+        if (s, d) in exchange_keys
+    ]
+    if dup:
+        print(f"警告：人工事件與交易所事件重複，已忽略人工項目：{dup}")
+        manual = manual[
+            [(s, d) not in exchange_keys
+             for s, d in zip(manual["symbol"], manual["ex_date"])]
+        ]
+    if pending:
+        print(f"警告：以下人工事件待確認，未套用：{pending}")
+
+    events = pd.concat([events, manual], ignore_index=True)
+
     return events.sort_values(["symbol", "ex_date"]).reset_index(drop=True)
 
 
@@ -148,6 +190,10 @@ def check_events(events, prices):
     results = []
 
     for row in events.itertuples(index=False):
+        if row.source == "MANUAL":
+            results.append(0.0)
+            continue
+
         sdf = prices[
             (prices["symbol"] == row.symbol)
             & (prices["date"] < row.ex_date)
@@ -165,7 +211,7 @@ def check_events(events, prices):
     events["db_prev_diff"] = results
     events["prev_close_ok"] = events["db_prev_diff"].apply(
         lambda d: d is not None and d <= PREV_CLOSE_TOLERANCE
-    )
+    ) | (events["source"] == "MANUAL")
     return events
 
 
