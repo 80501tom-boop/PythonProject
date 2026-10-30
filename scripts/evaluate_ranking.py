@@ -345,9 +345,13 @@ def main():
 
     panel = add_ml_scores(panel, DEV_START_INDEX, n_dates - LOOK_FORWARD - 1)
 
+    full_end = n_dates - LOOK_FORWARD - 1
+
     results = []
+    # 完整期間（約 51 次調倉）為主要判斷依據；保留期僅作檢查
+    results += run_period(panel, "full", DEV_START_INDEX, full_end)
     results += run_period(panel, "dev", DEV_START_INDEX, dev_end)
-    results += run_period(panel, "holdout", holdout_start, n_dates - LOOK_FORWARD - 1)
+    results += run_period(panel, "holdout", holdout_start, full_end)
 
     out = pd.DataFrame(results)
     os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
