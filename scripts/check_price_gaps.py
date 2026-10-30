@@ -122,8 +122,16 @@ def check_symbol(symbol, sdf, ref_dates, ref_max):
 
     zero_volume = int((sdf["volume"] == 0).sum())
 
-    returns = sdf["close"].pct_change().abs()
-    jumps = int((returns > JUMP_THRESHOLD).sum())
+    raw_returns = sdf["close"].pct_change()
+    jump_mask = raw_returns.abs() > JUMP_THRESHOLD
+    jumps = int(jump_mask.sum())
+    jump_dates = "; ".join(
+        f"{d:%Y-%m-%d} {r:+.1%}"
+        for d, r in zip(
+            sdf.loc[jump_mask, "date"],
+            raw_returns[jump_mask],
+        )
+    )
 
     return {
         "symbol": symbol,
@@ -141,6 +149,7 @@ def check_symbol(symbol, sdf, ref_dates, ref_max):
         "bad_price": bad_price,
         "zero_volume": zero_volume,
         "jumps_over_20pct": jumps,
+        "jump_dates": jump_dates,
     }
 
 
