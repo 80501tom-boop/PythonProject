@@ -70,6 +70,8 @@ django.setup()
 from myapp.models import Stock, StockPrice
 
 from myapp.models import PredictionHistory
+
+from config import POOL_SYMBOLS, is_eligible
 # ============================================================
 # 基本設定
 # ============================================================
@@ -356,7 +358,7 @@ def build_market_dataset():
     print("建立全市場資料")
     print("=" * 70)
 
-    stocks = Stock.objects.all()
+    stocks = Stock.objects.filter(symbol__in=POOL_SYMBOLS)
 
     market_data = []
     stock_count = 0
@@ -376,6 +378,19 @@ def build_market_dataset():
                 continue
 
             df = create_features(df)
+
+            # -----------------------------
+            # point-in-time：只保留首次納入日之後的列
+            # -----------------------------
+            symbol = str(stock.symbol).strip()
+            df = df[
+                df["date"].map(
+                    lambda d: is_eligible(symbol, pd.Timestamp(d).date())
+                )
+            ]
+
+            if df.empty:
+                continue
 
             # -----------------------------
             # 流動性門檻：
