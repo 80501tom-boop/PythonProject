@@ -41,7 +41,6 @@ OUTPUT_PATH = os.path.join(BASE_DIR, "myapp", "ml", "output", "ranking_evaluatio
 LOOK_FORWARD = 20
 REBALANCE_STEP = 20
 TOP_NS = (5, 10)
-BUFFER_RANK = 15
 COSTS_ONE_SIDE = (0.001, 0.003)
 MIN_AVG_VOLUME_20 = 100000
 DEV_START_INDEX = 252
@@ -177,25 +176,9 @@ def add_ml_scores(panel, start_idx, end_idx):
 # 評估
 # =========================================================
 
-def select_top(scores, n, prev_holdings):
-    """Top-N 加緩衝區：前一期持股若仍在前 BUFFER_RANK 名則續留。"""
-    ranked = scores.sort_values(ascending=False)
-    rank_pos = {sym: i + 1 for i, sym in enumerate(ranked.index)}
-
-    keep = [
-        s for s in prev_holdings
-        if s in rank_pos and rank_pos[s] <= BUFFER_RANK
-    ][:n]
-
-    picks = keep[:]
-
-    for sym in ranked.index:
-        if len(picks) >= n:
-            break
-        if sym not in picks:
-            picks.append(sym)
-
-    return picks
+def select_top(scores, n):
+    """純排名選股：取分數最高的前 n 檔。"""
+    return list(scores.sort_values(ascending=False).index[:n])
 
 
 def bootstrap_ci(values, n=BOOTSTRAP_N):
@@ -247,7 +230,7 @@ def evaluate_strategy(panel, score_col, idx_start, idx_end, top_n):
         if len(snap) < top_n + 2:
             continue
 
-        picks = select_top(snap[score_col], top_n, prev)
+        picks = select_top(snap[score_col], top_n)
         turnover = 1 - len(set(picks) & set(prev)) / top_n if prev else 1.0
 
         gross = snap.loc[picks, "fwd20"].mean()
@@ -262,6 +245,8 @@ def evaluate_strategy(panel, score_col, idx_start, idx_end, top_n):
             "ew": ew,
             "spread": top_decile - bottom,
             "turnover": turnover,
+            "beat_market": float(gross > ew),
+            "positive": float(gross > 0),
         }
 
         for cost in COSTS_ONE_SIDE:
@@ -286,6 +271,8 @@ def summarize(name, top_n, ic_series, rec):
         "n_rebalance": len(rec),
         "turnover": rec["turnover"].mean() if len(rec) else np.nan,
         "spread_mean": rec["spread"].mean() if len(rec) else np.nan,
+        "beat_market_rate": rec["beat_market"].mean() if len(rec) else np.nan,
+        "positive_rate": rec["positive"].mean() if len(rec) else np.nan,
     }
 
     for cost in COSTS_ONE_SIDE:
