@@ -13,8 +13,12 @@ adjust_prices.py
 1. 上市：TWT49U 除權息計算結果（cp950 編碼，第 1 行為標題）
 2. 上櫃：櫃買中心除權息資訊（cp950 編碼，前 2 行為標題）
 
-使用方式：
-    python scripts/adjust_prices.py --twse dividends_2021-1.csv --tpex Exright_1100101_1151030.csv
+使用方式（預設讀取 data/ 內的除權息檔，無需參數）：
+    python scripts/adjust_prices.py
+
+資料檔：
+    data/twse_exright_2021_2026.csv：上市（TWT49U，cp950）
+    data/tpex_exright_2021_2026.csv：上櫃（櫃買中心，cp950）
 
 輸出：
     adjusted_prices.csv：symbol, date, close, adj_close, factor
@@ -46,6 +50,10 @@ django.setup()
 
 from myapp.models import StockPrice
 
+
+DATA_DIR = os.path.join(BASE_DIR, "data")
+TWSE_DEFAULT = os.path.join(DATA_DIR, "twse_exright_2021_2026.csv")
+TPEX_DEFAULT = os.path.join(DATA_DIR, "tpex_exright_2021_2026.csv")
 
 ADJUSTED_PATH = os.path.join(BASE_DIR, "adjusted_prices.csv")
 EVENTS_PATH = os.path.join(BASE_DIR, "dividend_events.csv")
@@ -195,8 +203,14 @@ def validate_example(adjusted):
 
 def main():
     parser = argparse.ArgumentParser(description="計算還原收盤價")
-    parser.add_argument("--twse", required=True, help="TWT49U 除權息 CSV 路徑")
-    parser.add_argument("--tpex", required=True, help="櫃買除權息 CSV 路徑")
+    parser.add_argument(
+        "--twse", default=TWSE_DEFAULT,
+        help="上市除權息 CSV 路徑（預設 data/twse_exright_2021_2026.csv）",
+    )
+    parser.add_argument(
+        "--tpex", default=TPEX_DEFAULT,
+        help="上櫃除權息 CSV 路徑（預設 data/tpex_exright_2021_2026.csv）",
+    )
     args = parser.parse_args()
 
     prices = load_prices()
