@@ -526,7 +526,7 @@ def get_tpex_month_data(stock_code, yyyymm):
 
         try:
             volume_lots = Decimal(
-                str(row["成交張數"]).strip().replace(",", "")
+                str(row[volume_field]).strip().replace(",", "")
             )
 
             if not volume_lots.is_finite() or volume_lots < 0:
@@ -541,8 +541,8 @@ def get_tpex_month_data(stock_code, yyyymm):
 
         except (InvalidOperation, ValueError) as exc:
             raise MarketDataError(
-                f"TPEx {trade_date} 成交張數異常："
-                f"{row['成交張數']!r}"
+                f"TPEx {trade_date} 成交量異常："
+                f"{row[volume_field]!r}"
             ) from exc
 
         records.append({
