@@ -40,6 +40,7 @@ os.environ.setdefault(
 django.setup()
 
 from myapp.models import StockPrice
+from config import POOL_SYMBOLS
 
 
 # 參考交易日：至少此比例的股票當天有資料
@@ -71,7 +72,9 @@ REPORT_PATH = os.path.join(BASE_DIR, "price_gap_report.csv")
 
 def load_prices():
 
-    rows = StockPrice.objects.values_list(
+    rows = StockPrice.objects.filter(
+        stock__symbol__in=POOL_SYMBOLS
+    ).values_list(
         "stock__symbol",
         "date",
         "close_price",

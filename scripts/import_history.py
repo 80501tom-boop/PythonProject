@@ -50,6 +50,7 @@ os.environ.setdefault(
 django.setup()
 
 from myapp.models import Stock, StockPrice
+from config import POOL_SYMBOLS
 
 
 # =========================================================
@@ -954,8 +955,10 @@ def update_stock(stock_code):
 # =========================================================
 
 def update_all_stocks():
-    """更新資料庫內全部股票，統計成功與失敗數量。"""
-    stocks = Stock.objects.all().order_by("symbol")
+    """更新股票池內全部股票，統計成功與失敗數量。"""
+    stocks = Stock.objects.filter(
+        symbol__in=POOL_SYMBOLS
+    ).order_by("symbol")
 
     total = stocks.count()
     success_count = 0
@@ -997,8 +1000,10 @@ def update_all_stocks():
 # =========================================================
 
 def import_all_stocks(months, force=False):
-    """以指定月數回補全部股票，並統計成功與失敗數量。"""
-    stocks = Stock.objects.all().order_by("symbol")
+    """以指定月數回補股票池內全部股票，並統計成功與失敗數量。"""
+    stocks = Stock.objects.filter(
+        symbol__in=POOL_SYMBOLS
+    ).order_by("symbol")
 
     total = stocks.count()
     success_count = 0

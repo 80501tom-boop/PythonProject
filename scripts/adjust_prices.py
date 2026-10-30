@@ -49,6 +49,7 @@ os.environ.setdefault(
 django.setup()
 
 from myapp.models import StockPrice
+from config import POOL_SYMBOLS
 
 
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -113,7 +114,9 @@ def load_tpex(path):
 
 
 def load_prices():
-    rows = StockPrice.objects.values_list(
+    rows = StockPrice.objects.filter(
+        stock__symbol__in=POOL_SYMBOLS
+    ).values_list(
         "stock__symbol", "date", "close_price"
     )
 
