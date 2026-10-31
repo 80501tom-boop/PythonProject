@@ -288,6 +288,7 @@ def run_mom20_benchmark(df, rebalance_dates):
 
     rebalance_set = set(rebalance_dates)
     mom_df = df[df["date"].isin(rebalance_set)]
+    prev_picks = None
 
     for backtest_date, current_df in mom_df.groupby("date"):
         current_df = current_df.dropna(subset=["return_20"])
@@ -301,12 +302,26 @@ def run_mom20_benchmark(df, rebalance_dates):
 
         actual_avg = float(top_df["actual_return_20"].mean())
         market_avg = float(current_df["bench_return_20"].iloc[0])
+        excess_return = actual_avg - market_avg
+
+        picks = set(top_df["symbol"])
+
+        if prev_picks is None:
+            turnover = 1.0
+            cost_drag = COST_ONE_WAY * 100
+        else:
+            turnover = 1 - len(picks & prev_picks) / TOP_N
+            cost_drag = turnover * 2 * COST_ONE_WAY * 100
+
+        prev_picks = picks
 
         rows.append({
             "date": pd.Timestamp(backtest_date).strftime("%Y-%m-%d"),
             "actual_avg": actual_avg,
             "market_avg": market_avg,
-            "excess_return": actual_avg - market_avg,
+            "excess_return": excess_return,
+            "excess_return_net": excess_return - cost_drag,
+            "turnover": turnover,
             "positive_rate": float((top_df["actual_return_20"] > 0).mean() * 100),
             "outperform_market": int(actual_avg > market_avg),
         })
@@ -553,9 +568,24 @@ def main():
         print()
         print(f"【mom20 並列對照】（期數 {len(mom20_df)}）")
         print(f"Top-{TOP_N} 平均超額報酬：{mom20_df['excess_return'].mean():.2f}%")
+        print(f"Top-{TOP_N} 平均超額報酬（扣成本）：{mom20_df['excess_return_net'].mean():.2f}%")
         print(f"超越市場比例：{mom20_df['outperform_market'].mean() * 100:.2f}%")
         print(f"正報酬比例：{mom20_df['positive_rate'].mean():.2f}%")
         print(f"輸出：{mom20_path}")
+
+        paired = strategy_df[["date", "excess_return_net"]].merge(
+            mom20_df.assign(date=pd.to_datetime(mom20_df["date"]))[["date", "excess_return_net"]],
+            on="date",
+            suffixes=("_ml", "_mom20"),
+        )
+        diff = paired["excess_return_net_ml"] - paired["excess_return_net_mom20"]
+        diff_mean, diff_low, diff_high = mean_ci95(diff)
+
+        print()
+        print("【ML − mom20 配對比較（扣成本）】")
+        print(f"配對期數：{len(paired)}")
+        print(f"平均差異：{diff_mean:.2f}%")
+        print(f"95% CI：[{diff_low:.2f}%, {diff_high:.2f}%]")
 
     max_drawdown = calculate_max_drawdown(strategy_df["actual_avg"])
 
