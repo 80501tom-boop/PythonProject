@@ -56,6 +56,28 @@ django.setup()
 
 from myapp.models import Stock, StockPrice
 
+from config import POOL_SYMBOLS, is_eligible
+
+ADJUSTED_PATH = os.path.join(BASE_DIR, "adjusted_prices.csv")
+_ADJUSTED_CACHE = {}
+
+
+def load_adjusted_prices(symbol):
+    """讀取 adjust_prices.py 產生的還原收盤價（date, adj_close）。"""
+    if not os.path.exists(ADJUSTED_PATH):
+        raise FileNotFoundError(
+            f"找不到 {ADJUSTED_PATH}，請先執行 scripts/adjust_prices.py"
+        )
+
+    if _ADJUSTED_CACHE.get("df") is None:
+        adj = pd.read_csv(ADJUSTED_PATH, dtype={"symbol": str})
+        adj["symbol"] = adj["symbol"].str.strip()
+        adj["date"] = pd.to_datetime(adj["date"])
+        _ADJUSTED_CACHE["df"] = adj
+
+    adj = _ADJUSTED_CACHE["df"]
+    return adj.loc[adj["symbol"] == symbol, ["date", "adj_close"]]
+
 
 # =========================================================
 # 設定
@@ -63,7 +85,12 @@ from myapp.models import Stock, StockPrice
 
 LOOK_FORWARD = 20
 
+BENCHMARK_SYMBOL = "0050"
+
 MIN_DATA_LENGTH = 120
+
+# 逐日流動性門檻（20 日平均成交量，股）
+MIN_AVG_VOLUME_20 = 100000
 
 TOP_N = 10
 
@@ -145,6 +172,23 @@ def get_stock_data(stock):
 
     df["date"] = pd.to_datetime(
         df["date"]
+    )
+
+    # 使用還原收盤價計算特徵與未來報酬，避免除權息與分割造成假跳動
+    df = df.merge(
+        load_adjusted_prices(str(stock.symbol).strip()),
+        on="date",
+        how="left",
+    )
+
+    df = df.dropna(
+        subset=["adj_close"]
+    )
+
+    df["close"] = df["adj_close"]
+
+    df = df.drop(
+        columns=["adj_close"]
     )
 
     return df
@@ -311,7 +355,7 @@ def build_market_dataset():
 
     stocks = (
         Stock.objects
-        .all()
+        .filter(symbol__in=POOL_SYMBOLS)
         .order_by("symbol")
     )
 
@@ -372,14 +416,30 @@ def build_market_dataset():
         df["is_twse"] = 1 if market_norm == "TWSE" else 0
         df["is_tpex"] = 1 if market_norm == "TPEX" else 0
 
-        # 流動性門檻（與 forward 對齊）
-        latest_volume_ma20 = pd.to_numeric(
-            df["volume_ma20"].iloc[-1],
+        # 逐日流動性門檻：每一列只用當天的 volume_ma20 過濾，
+        # 避免用資料最後一天的值決定整檔股票是否納入（前視偏誤）
+        liquid_mask = pd.to_numeric(
+            df["volume_ma20"],
             errors="coerce"
+        ) >= MIN_AVG_VOLUME_20
+
+        df = df[liquid_mask].copy()
+
+        if df.empty:
+            print("  -> Skip: low liquidity")
+            continue
+
+        # Point-in-time：新增股票只能從首次納入日之後被選取
+        symbol_code = str(stock.symbol).strip()
+
+        eligible_mask = df["date"].apply(
+            lambda d: is_eligible(symbol_code, pd.Timestamp(d).date())
         )
 
-        if pd.isna(latest_volume_ma20) or latest_volume_ma20 < 100000:
-            print("  -> Skip: low liquidity")
+        df = df[eligible_mask].copy()
+
+        if df.empty:
+            print("  -> Skip: not yet in pool")
             continue
 
         df["symbol"] = (
@@ -403,6 +463,16 @@ def build_market_dataset():
         market_data,
         ignore_index=True
     )
+
+    # 基準：0050 同日的未來 20 日報酬；0050 不參與選股與訓練
+    bench = market_df.loc[
+        market_df["symbol"] == BENCHMARK_SYMBOL,
+        ["date", "future_return_20"]
+    ].rename(columns={"future_return_20": "bench_return_20"})
+
+    market_df = market_df[
+        market_df["symbol"] != BENCHMARK_SYMBOL
+    ].merge(bench, on="date", how="left")
 
     return market_df
 
@@ -650,6 +720,8 @@ def run_single_backtest(
             "predicted_return_20",
             "actual_return_20",
             "prediction_error",
+            "return_20",
+            "bench_return_20",
         ]
     ]
 
@@ -913,6 +985,12 @@ def save_backtest_csv(
     export_df[
         "prediction_error"
     ] *= 100
+
+    # 並列對照：mom20 欄位（過去 20 日漲幅，百分比）
+    export_df["return_20"] *= 100
+
+    # 基準：0050 的實際 20 日報酬（百分比）
+    export_df["bench_return_20"] *= 100
 
     export_df.to_csv(
         output_file,

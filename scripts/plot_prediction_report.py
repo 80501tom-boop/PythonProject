@@ -4,7 +4,7 @@
 Prediction Report - Predicted vs. Actual Returns
 
 用途：
-1. 讀取 Top-5 策略回測明細。
+1. 讀取 Top-10 策略回測明細。
 2. 計算 MAE、RMSE 與方向準確率。
 3. 繪製預測報酬與實際報酬散佈圖。
 4. 輸出 PNG 與 PDF 報告。
@@ -158,7 +158,7 @@ def main():
         s=38,
         edgecolors="white",
         linewidths=0.4,
-        label="Top-5 Selected Stocks",
+        label="Top-10 Selected Stocks",
     )
 
     # 理想預測線：預測值等於實際值

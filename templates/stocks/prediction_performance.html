@@ -258,9 +258,9 @@
 
     </section>
 
-    <!-- Top 5 績效 -->
+    <!-- Top 10 績效 -->
     <section class="performance-section">
-        <h2>Top 5 選股績效</h2>
+        <h2>Top 10 選股績效</h2>
         <p class="performance-description">
             顯示最近的前瞻預測紀錄。尚未取得未來 20 個交易日實際報酬的資料，
             將標示為「等待評估」，不會納入績效統計。
@@ -271,8 +271,8 @@
                 <thead>
                     <tr>
                         <th>預測日期</th>
-                        <th>Top 5 評估數</th>
-                        <th>Top 5 實際平均報酬</th>
+                        <th>Top 10 評估數</th>
+                        <th>Top 10 實際平均報酬</th>
                         <th>全樣本平均報酬</th>
                     </tr>
                 </thead>
@@ -281,19 +281,19 @@
                     {% for batch in batch_performance %}
                     <tr>
                         <td>{{ batch.prediction_date|date:"Y-m-d" }}</td>
-                        <td>{{ batch.top5_count }}</td>
+                        <td>{{ batch.topn_count }}</td>
 
                         <td>
-                            {% if batch.top5_actual_avg > 0 %}
+                            {% if batch.topn_actual_avg > 0 %}
                                 <span class="return-positive">
-                                    +{{ batch.top5_actual_avg|floatformat:2 }}%
+                                    +{{ batch.topn_actual_avg|floatformat:2 }}%
                                 </span>
-                            {% elif batch.top5_actual_avg < 0 %}
+                            {% elif batch.topn_actual_avg < 0 %}
                                 <span class="return-negative">
-                                    {{ batch.top5_actual_avg|floatformat:2 }}%
+                                    {{ batch.topn_actual_avg|floatformat:2 }}%
                                 </span>
                             {% else %}
-                                {{ batch.top5_actual_avg|floatformat:2 }}%
+                                {{ batch.topn_actual_avg|floatformat:2 }}%
                             {% endif %}
                         </td>
 

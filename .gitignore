@@ -25,6 +25,11 @@ __pycache__/
 *.pyc
 db.sqlite3
 
+# Large derived data and models (regenerate locally; see data manifest)
+/adjusted_prices.csv
+/price_gap_report.csv
+myapp/ml/models/*.txt
+
 myapp/ml/models/lightgbm_v5_7_forward.txt
 myapp/ml/output/forward_prediction.csv
 myapp/ml/output/market_ranking.csv

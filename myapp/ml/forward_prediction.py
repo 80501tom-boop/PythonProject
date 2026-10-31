@@ -70,6 +70,13 @@ django.setup()
 from myapp.models import Stock, StockPrice
 
 from myapp.models import PredictionHistory
+
+from config import POOL_SYMBOLS, TOP_N, is_eligible
+
+BENCHMARK_SYMBOL = "0050"
+
+ADJUSTED_PATH = os.path.join(BASE_DIR, "adjusted_prices.csv")
+_ADJUSTED_CACHE = {}
 # ============================================================
 # 基本設定
 # ============================================================
@@ -77,8 +84,6 @@ from myapp.models import PredictionHistory
 LOOK_FORWARD = 20
 
 MIN_DATA_LENGTH = 120
-
-TOP_N = 5
 
 MODEL_VERSION = "V5.8-FORWARD"
 
@@ -235,6 +240,23 @@ def calculate_rsi(
 # 股票資料
 # ============================================================
 
+def load_adjusted_prices(symbol):
+    """讀取 adjust_prices.py 產生的還原收盤價（date, adj_close）。"""
+    if not os.path.exists(ADJUSTED_PATH):
+        raise FileNotFoundError(
+            f"找不到 {ADJUSTED_PATH}，請先執行 scripts/adjust_prices.py"
+        )
+
+    if _ADJUSTED_CACHE.get("df") is None:
+        adj = pd.read_csv(ADJUSTED_PATH, dtype={"symbol": str})
+        adj["symbol"] = adj["symbol"].str.strip()
+        adj["date"] = pd.to_datetime(adj["date"])
+        _ADJUSTED_CACHE["df"] = adj
+
+    adj = _ADJUSTED_CACHE["df"]
+    return adj.loc[adj["symbol"] == symbol, ["date", "adj_close"]]
+
+
 def get_stock_data(stock):
 
     prices = StockPrice.objects.filter(
@@ -269,10 +291,17 @@ def get_stock_data(stock):
         errors="coerce"
     )
 
+    df = df.merge(
+        load_adjusted_prices(str(stock.symbol).strip()),
+        on="date",
+        how="left",
+    )
+
     df = df.dropna(
         subset=[
             "date",
             "close",
+            "adj_close",
             "volume"
         ]
     )
@@ -294,6 +323,10 @@ def get_stock_data(stock):
 def create_features(df):
 
     df = df.copy()
+
+    # 特徵與標籤使用還原收盤價；原始收盤價保留給輸出顯示
+    df["close_raw"] = df["close"]
+    df["close"] = df["adj_close"]
 
     # --------------------------------------------------------
     # 報酬率
@@ -342,6 +375,9 @@ def create_features(df):
     )
     df["future_date_20"] = df["date"].shift(-LOOK_FORWARD)
 
+    df["close"] = df["close_raw"]
+    df = df.drop(columns=["close_raw", "adj_close"])
+
     return df
 
 
@@ -356,7 +392,10 @@ def build_market_dataset():
     print("建立全市場資料")
     print("=" * 70)
 
-    stocks = Stock.objects.all()
+    # 0050 為基準，不參與選股候選
+    stocks = Stock.objects.filter(
+        symbol__in=POOL_SYMBOLS
+    ).exclude(symbol=BENCHMARK_SYMBOL)
 
     market_data = []
     stock_count = 0
@@ -376,6 +415,19 @@ def build_market_dataset():
                 continue
 
             df = create_features(df)
+
+            # -----------------------------
+            # point-in-time：只保留首次納入日之後的列
+            # -----------------------------
+            symbol = str(stock.symbol).strip()
+            df = df[
+                df["date"].map(
+                    lambda d: is_eligible(symbol, pd.Timestamp(d).date())
+                )
+            ]
+
+            if df.empty:
+                continue
 
             # -----------------------------
             # 流動性門檻：
@@ -921,6 +973,13 @@ def predict_latest(
         current_df.index + 1
     )
 
+    # 並列對照：mom20 = 過去 20 日漲幅排名（僅作對照，不取代主排名）
+    current_df["rank_mom20"] = (
+        current_df["return_20"]
+        .rank(ascending=False, method="first")
+        .astype(int)
+    )
+
     # --------------------------------------------------------
     # Prediction 日期
     # --------------------------------------------------------
@@ -1102,10 +1161,14 @@ def save_prediction(result_df):
             "close",
             "predicted_return_20",
             "rank",
+            "rank_mom20",
+            "return_20",
             "model_version",
             "horizon",
         ]
     ].copy()
+
+    export_df["return_20"] = export_df["return_20"] * 100
 
     export_df["prediction_date"] = (
         pd.to_datetime(
@@ -1185,12 +1248,21 @@ def save_prediction(result_df):
     print(f"預測股票數：{len(export_df)}")
 
     print()
-    print("Top 5：")
+    print(f"Top {TOP_N}（LightGBM 主排名）：")
 
     print(
         ranking_df.head(TOP_N).to_string(
             index=False
         )
+    )
+
+    print()
+    print(f"Top {TOP_N}（mom20 並列對照）：")
+
+    print(
+        export_df.sort_values("rank_mom20")[
+            ["rank_mom20", "symbol", "stock_name", "close_price", "return_20"]
+        ].head(TOP_N).to_string(index=False)
     )
 
 

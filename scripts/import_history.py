@@ -15,6 +15,9 @@ import_history.py
     python scripts/import_history.py 2330
     python scripts/import_history.py all
     python scripts/import_history.py 6488
+    python scripts/import_history.py 2330 --months 60   # 回補 60 個月
+    python scripts/import_history.py all --months 60    # 全部股票回補 60 個月
+    python scripts/import_history.py 0050 --months 70 --force  # 強制重抓 70 個月（補缺漏）
 """
 
 import os
@@ -47,6 +50,7 @@ os.environ.setdefault(
 django.setup()
 
 from myapp.models import Stock, StockPrice
+from config import POOL_SYMBOLS
 
 
 # =========================================================
@@ -72,11 +76,14 @@ HEADERS = {
 
 REQUEST_TIMEOUT = 20
 REQUEST_RETRIES = 5
-REQUEST_DELAY = 0.8
+REQUEST_DELAY = 0.3
 
 # 429/5xx 額外退避（秒）
 BACKOFF_BASE_SECONDS = 1.5
 BACKOFF_MAX_SECONDS = 30.0
+
+# 月份資料筆數達此門檻即視為完整，回補時略過（交易月約 18～23 日）
+MIN_COMPLETE_MONTH_ROWS = 15
 
 
 # =========================================================
@@ -457,9 +464,8 @@ def get_tpex_month_data(stock_code, yyyymm):
     if not isinstance(tables, list):
         raise MarketDataError("TPEx 回傳缺少有效的 tables 清單")
 
-    required_fields = {
-        "日 期", "成交張數", "開盤", "最高", "最低", "收盤"
-    }
+    required_fields = {"日 期", "開盤", "最高", "最低", "收盤"}
+    volume_fields = ("成交張數", "成交仟股")
     price_table = None
 
     for table in tables:
@@ -472,6 +478,7 @@ def get_tpex_month_data(stock_code, yyyymm):
             isinstance(fields, list)
             and all(isinstance(field, str) for field in fields)
             and required_fields.issubset(fields)
+            and any(name in fields for name in volume_fields)
         ):
             price_table = table
             break
@@ -482,6 +489,7 @@ def get_tpex_month_data(stock_code, yyyymm):
         )
 
     fields = price_table["fields"]
+    volume_field = next(name for name in volume_fields if name in fields)
     rows = price_table.get("data")
 
     if not isinstance(rows, list):
@@ -519,7 +527,7 @@ def get_tpex_month_data(stock_code, yyyymm):
 
         try:
             volume_lots = Decimal(
-                str(row["成交張數"]).strip().replace(",", "")
+                str(row[volume_field]).strip().replace(",", "")
             )
 
             if not volume_lots.is_finite() or volume_lots < 0:
@@ -534,8 +542,8 @@ def get_tpex_month_data(stock_code, yyyymm):
 
         except (InvalidOperation, ValueError) as exc:
             raise MarketDataError(
-                f"TPEx {trade_date} 成交張數異常："
-                f"{row['成交張數']!r}"
+                f"TPEx {trade_date} 成交量異常："
+                f"{row[volume_field]!r}"
             ) from exc
 
         records.append({
@@ -738,7 +746,24 @@ def get_latest_market_date(stock, lookback_months=3):
 # 匯入約一年歷史資料
 # =========================================================
 
-def import_stock(stock_code, months=12):
+def count_existing_rows_by_month(stock, start_date):
+    """統計 start_date 之後，資料庫中每個月已有的交易日筆數。"""
+    counts = {}
+
+    dates = (
+        StockPrice.objects
+        .filter(stock=stock, date__gte=start_date)
+        .values_list("date", flat=True)
+    )
+
+    for trade_date in dates:
+        key = trade_date.strftime("%Y%m")
+        counts[key] = counts.get(key, 0) + 1
+
+    return counts
+
+
+def import_stock(stock_code, months=12, force=False):
     """
     匯入指定股票約一年的歷史資料。
 
@@ -766,7 +791,19 @@ def import_stock(stock_code, months=12):
     total_saved = 0
     failed_months = []
 
+    existing_counts = count_existing_rows_by_month(stock, start_date)
+    current_yyyymm = today.strftime("%Y%m")
+
     for yyyymm in month_strings(start_date, today):
+        # 已完整存在的月份略過；當月一律重抓以更新最新資料
+        if (
+            not force
+            and yyyymm != current_yyyymm
+            and existing_counts.get(yyyymm, 0) >= MIN_COMPLETE_MONTH_ROWS
+        ):
+            print(f"\n略過 {yyyymm}（資料庫已有完整資料）")
+            continue
+
         print(f"\n取得 {yyyymm} 行情...")
 
         try:
@@ -918,8 +955,10 @@ def update_stock(stock_code):
 # =========================================================
 
 def update_all_stocks():
-    """更新資料庫內全部股票，統計成功與失敗數量。"""
-    stocks = Stock.objects.all().order_by("symbol")
+    """更新股票池內全部股票，統計成功與失敗數量。"""
+    stocks = Stock.objects.filter(
+        symbol__in=POOL_SYMBOLS
+    ).order_by("symbol")
 
     total = stocks.count()
     success_count = 0
@@ -960,17 +999,80 @@ def update_all_stocks():
 # 命令列入口
 # =========================================================
 
+def import_all_stocks(months, force=False):
+    """以指定月數回補股票池內全部股票，並統計成功與失敗數量。"""
+    stocks = Stock.objects.filter(
+        symbol__in=POOL_SYMBOLS
+    ).order_by("symbol")
+
+    total = stocks.count()
+    success_count = 0
+    fail_count = 0
+
+    print("\n" + "=" * 60)
+    print(f"開始回補全部股票 {months} 個月，共 {total} 檔")
+    print("=" * 60)
+
+    for index, stock in enumerate(stocks, start=1):
+        print(f"\n[{index}/{total}] {stock.symbol}")
+
+        try:
+            if import_stock(stock.symbol, months=months, force=force):
+                success_count += 1
+            else:
+                fail_count += 1
+
+        except Exception as exc:
+            fail_count += 1
+            print(
+                f"股票 {stock.symbol} 發生未預期錯誤：{exc}"
+            )
+
+    print("\n" + "=" * 60)
+    print(f"總數：{total}　成功：{success_count}　失敗：{fail_count}")
+    print("=" * 60)
+
+    return fail_count == 0
+
+
 if __name__ == "__main__":
+    months = None
+
+    # 解析 --months N，例如：--months 60
+    if "--months" in sys.argv:
+        idx = sys.argv.index("--months")
+
+        try:
+            months = int(sys.argv[idx + 1])
+        except (IndexError, ValueError):
+            print("錯誤：--months 需要正整數，例如 --months 60")
+            sys.exit(1)
+
+        if months <= 0:
+            print("錯誤：--months 需要正整數")
+            sys.exit(1)
+
+        del sys.argv[idx:idx + 2]
+
+    # --force：忽略既有資料，重抓指定期間所有月份（用於補缺漏）
+    force = "--force" in sys.argv
+    sys.argv = [arg for arg in sys.argv if arg != "--force"]
+
     if len(sys.argv) >= 2:
         argument = sys.argv[1].strip()
     else:
         argument = "2330"
 
     if argument.lower() == "all":
-        success = update_all_stocks()
+        if months is not None:
+            success = import_all_stocks(months, force=force)
+        else:
+            success = update_all_stocks()
 
-    elif len(sys.argv) >= 3 and sys.argv[2].lower() == "import":
-        success = import_stock(argument)
+    elif months is not None or (
+        len(sys.argv) >= 3 and sys.argv[2].lower() == "import"
+    ):
+        success = import_stock(argument, months=months or 12, force=force)
 
     else:
         success = update_stock(argument)
