@@ -28,6 +28,7 @@ V5.9 - Top-N 股票選股策略回測
     - market_strategy_summary.csv
 """
 
+import argparse
 import os
 import pandas as pd
 import numpy as np
@@ -279,6 +280,21 @@ def mean_ci95(values):
     return mean, mean - 1.96 * se, mean + 1.96 * se
 
 
+def print_yearly_breakdown(strategy_df):
+    """逐年輸出扣成本超額的期數、平均值與 95% CI，用於檢查優勢是否集中於特定年份。"""
+    print()
+    print("【逐年扣成本超額】")
+    print(f"{'年份':<6}{'期數':>6}{'平均超額(淨)':>14}{'95% CI':>26}")
+
+    for year, group in strategy_df.groupby(strategy_df["date"].dt.year):
+        mean, low, high = mean_ci95(group["excess_return_net"])
+        ci_text = (
+            f"[{low:.2f}%, {high:.2f}%]"
+            if not np.isnan(low) else "期數不足"
+        )
+        print(f"{year:<6}{len(group):>6}{mean:>13.2f}%{ci_text:>26}")
+
+
 def run_mom20_benchmark(df, rebalance_dates):
     """並列對照：以 return_20（過去 20 日漲幅）取 Top-N，與 ML 主排名同調倉日比較。"""
     if "return_20" not in df.columns:
@@ -332,7 +348,7 @@ def run_mom20_benchmark(df, rebalance_dates):
     return pd.DataFrame(rows)
 
 
-def main():
+def main(start=None, end=None):
 
     print()
     print("=" * 70)
@@ -403,6 +419,15 @@ def main():
             "bench_return_20",
         ]
     ).copy()
+
+    if start is not None:
+        df = df[df["date"] >= pd.Timestamp(start)]
+
+    if end is not None:
+        df = df[df["date"] <= pd.Timestamp(end)]
+
+    if start is not None or end is not None:
+        print(f"期間篩選：{start or '起始'} ～ {end or '結束'}，剩餘 {len(df)} 筆")
 
     try:
         validate_backtest_input(df, TOP_N)
@@ -715,6 +740,7 @@ def main():
     print(f"平均超額報酬：{average_excess:.2f}%")
     print(f"平均超額報酬（扣 {COST_ONE_WAY * 100:.1f}% 單邊成本）：{average_excess_net:.2f}%")
     print(f"扣成本超額 95% CI：[{net_ci_low:.2f}%, {net_ci_high:.2f}%]")
+    print_yearly_breakdown(strategy_df)
     print(f"成本拖累（子組合平均）：{average_excess - average_excess_net:.3f}%")
     print(f"平均換手率：{average_turnover * 100:.2f}%")
 
@@ -754,4 +780,8 @@ def main():
 # ============================================================
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Top-N 回測，可選擇日期區間")
+    parser.add_argument("--start", default=None, help="起始日期 YYYY-MM-DD")
+    parser.add_argument("--end", default=None, help="結束日期 YYYY-MM-DD")
+    cli_args = parser.parse_args()
+    main(start=cli_args.start, end=cli_args.end)
