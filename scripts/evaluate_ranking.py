@@ -40,6 +40,7 @@ ADJUSTED_PATH = os.path.join(BASE_DIR, "adjusted_prices.csv")
 OUTPUT_PATH = os.path.join(BASE_DIR, "myapp", "ml", "output", "ranking_evaluation.csv")
 PAIRED_OUTPUT_PATH = os.path.join(BASE_DIR, "myapp", "ml", "output", "ranking_paired_compare.csv")
 SCOPE_OUTPUT_PATH = os.path.join(BASE_DIR, "myapp", "ml", "output", "ranking_scope_compare.csv")
+REVENUE_PATH = os.path.join(BASE_DIR, "myapp", "ml", "output", "monthly_revenue.csv")
 
 LOOK_FORWARD = 20
 BENCHMARK_SYMBOL = "0050"
@@ -155,9 +156,13 @@ def build_panel(raw):
 # =========================================================
 
 ML_FEATURES = [f"{c}_cs" for c in FEATURES]
+# 營收特徵缺值（ETF 或無營收）以中性 0.5 補，避免 LightGBM 把「缺值」學成 ETF 指標
+REV_FEATURES = ["rev_yoy_f", "rev_mom_f"]
+REV_MODEL_FEATURES = ML_FEATURES + REV_FEATURES
 
 
-def train_model(panel, train_end_idx, params=None):
+def train_model(panel, train_end_idx, params=None, features=None):
+    features = features or ML_FEATURES
     train = panel[
         panel["liquid"]
         & panel["y"].notna()
@@ -166,24 +171,25 @@ def train_model(panel, train_end_idx, params=None):
 
     model = lgb.train(
         params or LGB_PARAMS,
-        lgb.Dataset(train[ML_FEATURES], label=train["y"]),
+        lgb.Dataset(train[features], label=train["y"]),
         num_boost_round=N_ESTIMATORS,
     )
     return model
 
 
-def add_ml_scores(panel, start_idx, end_idx, params=None, col="ml"):
+def add_ml_scores(panel, start_idx, end_idx, params=None, col="ml", features=None):
     """walk-forward：每 RETRAIN_EVERY 日重訓一次，訓練資料只用標籤已結束且超過 embargo 的列。"""
+    features = features or ML_FEATURES
     panel[col] = np.nan
 
     chunk_start = start_idx
 
     while chunk_start <= end_idx:
         chunk_end = min(chunk_start + RETRAIN_EVERY - 1, end_idx)
-        model = train_model(panel, chunk_start - EMBARGO - 1, params)
+        model = train_model(panel, chunk_start - EMBARGO - 1, params, features)
 
         mask = panel["date_idx"].between(chunk_start, chunk_end)
-        panel.loc[mask, col] = model.predict(panel.loc[mask, ML_FEATURES])
+        panel.loc[mask, col] = model.predict(panel.loc[mask, features])
 
         chunk_start = chunk_end + 1
 
@@ -230,6 +236,44 @@ def add_ridge_scores(panel, start_idx, end_idx, col="ridge"):
         chunk_start = chunk_end + 1
 
     panel[f"{col}_cs"] = panel.groupby("date")[col].rank(pct=True)
+
+    return panel
+
+
+def add_revenue_features(panel):
+    """月營收年增率／月增率，依公開日（available_date）對齊：每個交易日只用當日前已公布的最新營收。"""
+    if not os.path.exists(REVENUE_PATH):
+        raise SystemExit(f"找不到 {REVENUE_PATH}，請先執行 scripts/fetch_monthly_revenue.py")
+
+    rev = pd.read_csv(REVENUE_PATH, dtype={"symbol": str}, parse_dates=["available_date"])
+    rev["symbol"] = rev["symbol"].str.strip()
+    rev = rev.sort_values(["symbol", "revenue_year", "revenue_month"]).reset_index(drop=True)
+
+    key = rev.set_index(["symbol", "revenue_year", "revenue_month"])["revenue"]
+    y, m = rev["revenue_year"], rev["revenue_month"]
+    prev_y_rev = key.reindex(pd.MultiIndex.from_arrays([rev["symbol"], y - 1, m])).to_numpy()
+    prev_m_year = np.where(m == 1, y - 1, y)
+    prev_m_month = np.where(m == 1, 12, m - 1)
+    prev_m_rev = key.reindex(
+        pd.MultiIndex.from_arrays([rev["symbol"], prev_m_year, prev_m_month])
+    ).to_numpy()
+
+    rev["rev_yoy"] = (rev["revenue"] / prev_y_rev - 1).replace([np.inf, -np.inf], np.nan)
+    rev["rev_mom"] = (rev["revenue"] / prev_m_rev - 1).replace([np.inf, -np.inf], np.nan)
+
+    left = panel[["date", "symbol"]].reset_index().sort_values("date")
+    right = rev[["symbol", "available_date", "rev_yoy", "rev_mom"]].sort_values("available_date")
+    merged = pd.merge_asof(
+        left, right, left_on="date", right_on="available_date",
+        by="symbol", direction="backward",
+    ).set_index("index").reindex(panel.index)
+
+    panel["rev_yoy"] = merged["rev_yoy"]
+    panel["rev_mom"] = merged["rev_mom"]
+    panel["rev_yoy_cs"] = panel.groupby("date")["rev_yoy"].rank(pct=True)
+    panel["rev_mom_cs"] = panel.groupby("date")["rev_mom"].rank(pct=True)
+    panel["rev_yoy_f"] = panel["rev_yoy_cs"].fillna(0.5)
+    panel["rev_mom_f"] = panel["rev_mom_cs"].fillna(0.5)
 
     return panel
 
@@ -395,6 +439,10 @@ def run_period(panel, label, idx_start, idx_end, step=REBALANCE_STEP, names=None
     }
     if "ridge" in panel.columns:
         strategies["ridge"] = panel["ridge"]
+    if "ml_rev" in panel.columns:
+        strategies["ml_rev"] = panel["ml_rev"]
+        # 單一營收因子（只有個股有營收，ETF 自動排除）
+        strategies["rev_yoy"] = panel["rev_yoy_cs"]
     if "ml_tuned" in panel.columns:
         strategies["ml_tuned"] = panel["ml_tuned"]
         strategies["blend_tuned"] = panel["blend_tuned"]
@@ -553,6 +601,13 @@ def main():
 
     panel = add_ridge_scores(panel, DEV_START_INDEX, n_dates - LOOK_FORWARD - 1)
 
+    # 營收模型沿用開發期選定的超參數，不重新調參
+    panel = add_revenue_features(panel)
+    panel = add_ml_scores(
+        panel, DEV_START_INDEX, n_dates - LOOK_FORWARD - 1,
+        params=tuned_params, col="ml_rev", features=REV_MODEL_FEATURES,
+    )
+
     full_end = n_dates - LOOK_FORWARD - 1
 
     results = []
@@ -589,6 +644,7 @@ def main():
         ("ml_tuned", "ml", "ml_tuned_vs_ml"),
         ("ridge", "ml", "ridge_vs_ml"),
         ("ridge", "mom20_cs", "ridge_vs_mom20"),
+        ("ml_rev", "ml_tuned", "ml_rev_vs_ml_tuned"),
     ]:
         pair_rows += paired_compare(panel, DEV_START_INDEX, full_end, col_a, col_b, label)
     pair = pd.DataFrame(pair_rows)
