@@ -1141,8 +1141,8 @@ def market_strategy(request):
         "positive_return_rate": 0,
         "outperform_rate": 0,
         "direction_accuracy": 0,
-        "max_drawdown": 0,
-        "best_date": "",
+        "max_drawdown": None,
+        "max_drawdown_net": None,
         "best_return": 0,
         "worst_date": "",
         "worst_return": 0,
@@ -1430,15 +1430,13 @@ def market_strategy(request):
                     2
                 )
 
-                summary["max_drawdown"] = round(
-                    safe_float(
-                        row.get(
-                            "max_drawdown",
-                            0
-                        )
-                    ),
-                    2
-                )
+                for drawdown_key in ("max_drawdown", "max_drawdown_net"):
+                    drawdown_value = safe_float(row.get(drawdown_key), None)
+                    summary[drawdown_key] = (
+                        None
+                        if drawdown_value is None
+                        else round(drawdown_value, 2)
+                    )
 
                 summary["best_date"] = str(
                     row.get(
