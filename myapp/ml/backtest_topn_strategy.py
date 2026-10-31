@@ -28,6 +28,7 @@ V5.9 - Top-N 股票選股策略回測
     - market_strategy_summary.csv
 """
 
+import argparse
 import os
 import pandas as pd
 import numpy as np
@@ -74,6 +75,9 @@ SUMMARY_FILE = os.path.join(
 TOP_N = 10
 COST_ONE_WAY = 0.001
 LOOK_FORWARD = 20
+
+# 非重疊調倉：20 個交易日約 28 個日曆天
+REBALANCE_GAP_DAYS = 28
 
 
 # ============================================================
@@ -249,14 +253,60 @@ def calc_rank_ic(current_df):
 # 主程式
 # ============================================================
 
-def run_mom20_benchmark(df):
-    """並列對照：以 return_20（過去 20 日漲幅）取 Top-N，與 ML 主排名同日期比較。"""
+def select_rebalance_dates(backtest_dates, gap_days=REBALANCE_GAP_DAYS):
+    """依日曆間隔挑選調倉日，使各期持有期間不重疊。"""
+    selected = []
+
+    for backtest_date in backtest_dates:
+        ts = pd.Timestamp(backtest_date)
+
+        if not selected or ts >= selected[-1] + pd.Timedelta(days=gap_days):
+            selected.append(ts)
+
+    return selected
+
+
+def mean_ci95(values):
+    """平均值與 95% 信賴區間（常態近似，各期互不重疊）。"""
+    s = pd.Series(values, dtype="float64").dropna()
+    n = len(s)
+
+    if n < 2:
+        return float("nan"), float("nan"), float("nan")
+
+    mean = float(s.mean())
+    se = float(s.std(ddof=1) / np.sqrt(n))
+
+    return mean, mean - 1.96 * se, mean + 1.96 * se
+
+
+def print_yearly_breakdown(strategy_df):
+    """逐年輸出扣成本超額的期數、平均值與 95% CI，用於檢查優勢是否集中於特定年份。"""
+    print()
+    print("【逐年扣成本超額】")
+    print(f"{'年份':<6}{'期數':>6}{'平均超額(淨)':>14}{'95% CI':>26}")
+
+    for year, group in strategy_df.groupby(strategy_df["date"].dt.year):
+        mean, low, high = mean_ci95(group["excess_return_net"])
+        ci_text = (
+            f"[{low:.2f}%, {high:.2f}%]"
+            if not np.isnan(low) else "期數不足"
+        )
+        print(f"{year:<6}{len(group):>6}{mean:>13.2f}%{ci_text:>26}")
+
+
+def run_mom20_benchmark(df, rebalance_dates):
+    """並列對照：以 return_20（過去 20 日漲幅）取 Top-N，與 ML 主排名同調倉日比較。"""
     if "return_20" not in df.columns:
         return None
 
     rows = []
 
-    for backtest_date, current_df in df.groupby("date"):
+    rebalance_set = set(rebalance_dates)
+    mom_df = df[df["date"].isin(rebalance_set)]
+    prev_picks = None
+
+    for backtest_date, current_df in mom_df.groupby("date"):
         current_df = current_df.dropna(subset=["return_20"])
 
         if len(current_df) < TOP_N:
@@ -268,12 +318,26 @@ def run_mom20_benchmark(df):
 
         actual_avg = float(top_df["actual_return_20"].mean())
         market_avg = float(current_df["bench_return_20"].iloc[0])
+        excess_return = actual_avg - market_avg
+
+        picks = set(top_df["symbol"])
+
+        if prev_picks is None:
+            turnover = 1.0
+            cost_drag = COST_ONE_WAY * 100
+        else:
+            turnover = 1 - len(picks & prev_picks) / TOP_N
+            cost_drag = turnover * 2 * COST_ONE_WAY * 100
+
+        prev_picks = picks
 
         rows.append({
             "date": pd.Timestamp(backtest_date).strftime("%Y-%m-%d"),
             "actual_avg": actual_avg,
             "market_avg": market_avg,
-            "excess_return": actual_avg - market_avg,
+            "excess_return": excess_return,
+            "excess_return_net": excess_return - cost_drag,
+            "turnover": turnover,
             "positive_rate": float((top_df["actual_return_20"] > 0).mean() * 100),
             "outperform_market": int(actual_avg > market_avg),
         })
@@ -284,7 +348,7 @@ def run_mom20_benchmark(df):
     return pd.DataFrame(rows)
 
 
-def main():
+def main(start=None, end=None):
 
     print()
     print("=" * 70)
@@ -356,6 +420,15 @@ def main():
         ]
     ).copy()
 
+    if start is not None:
+        df = df[df["date"] >= pd.Timestamp(start)]
+
+    if end is not None:
+        df = df[df["date"] <= pd.Timestamp(end)]
+
+    if start is not None or end is not None:
+        print(f"期間篩選：{start or '起始'} ～ {end or '結束'}，剩餘 {len(df)} 筆")
+
     try:
         validate_backtest_input(df, TOP_N)
     except ValueError as exc:
@@ -382,12 +455,15 @@ def main():
     print(f"開始進行 Top-{TOP_N} 策略回測...")
     print()
 
+    rebalance_dates = select_rebalance_dates(backtest_dates)
+    print(f"非重疊調倉期數：{len(rebalance_dates)}（間隔 {REBALANCE_GAP_DAYS} 日曆天）")
+
     strategy_results = []
     detail_results = []
     top_half_hit_list = []
-    picks_history = []
+    prev_picks = None
 
-    for backtest_date in backtest_dates:
+    for backtest_date in rebalance_dates:
         current_df = df[df["date"] == backtest_date].copy()
 
         if current_df.empty:
@@ -446,15 +522,17 @@ def main():
 
         rank_ic = calc_rank_ic(current_df)
 
-        # 每日建立一個 20 日持有的子組合，成本攤提到 20 個子組合
+        # 首期只計買進成本，之後以換入比例計算買進與賣出成本
         picks = set(top_df["symbol"])
-        picks_history.append(picks)
-        i = len(picks_history) - 1
-        prev_picks = picks_history[i - LOOK_FORWARD] if i >= LOOK_FORWARD else None
-        turnover = (
-            1 - len(picks & prev_picks) / TOP_N if prev_picks is not None else 1.0
-        )
-        cost_drag = turnover * 2 * COST_ONE_WAY * 100 / LOOK_FORWARD
+
+        if prev_picks is None:
+            turnover = 1.0
+            cost_drag = COST_ONE_WAY * 100
+        else:
+            turnover = 1 - len(picks & prev_picks) / TOP_N
+            cost_drag = turnover * 2 * COST_ONE_WAY * 100
+
+        prev_picks = picks
         excess_return_net = excess_return - cost_drag
 
         half_n = max(1, len(current_df) // 2)
@@ -507,7 +585,7 @@ def main():
         ["date", "rank"]
     ).reset_index(drop=True)
 
-    mom20_df = run_mom20_benchmark(df)
+    mom20_df = run_mom20_benchmark(df, rebalance_dates)
 
     if mom20_df is not None:
         mom20_path = os.path.join(OUTPUT_DIR, "market_strategy_mom20_benchmark.csv")
@@ -515,14 +593,30 @@ def main():
         print()
         print(f"【mom20 並列對照】（期數 {len(mom20_df)}）")
         print(f"Top-{TOP_N} 平均超額報酬：{mom20_df['excess_return'].mean():.2f}%")
+        print(f"Top-{TOP_N} 平均超額報酬（扣成本）：{mom20_df['excess_return_net'].mean():.2f}%")
         print(f"超越市場比例：{mom20_df['outperform_market'].mean() * 100:.2f}%")
         print(f"正報酬比例：{mom20_df['positive_rate'].mean():.2f}%")
         print(f"輸出：{mom20_path}")
+
+        paired = strategy_df[["date", "excess_return_net"]].merge(
+            mom20_df.assign(date=pd.to_datetime(mom20_df["date"]))[["date", "excess_return_net"]],
+            on="date",
+            suffixes=("_ml", "_mom20"),
+        )
+        diff = paired["excess_return_net_ml"] - paired["excess_return_net_mom20"]
+        diff_mean, diff_low, diff_high = mean_ci95(diff)
+
+        print()
+        print("【ML − mom20 配對比較（扣成本）】")
+        print(f"配對期數：{len(paired)}")
+        print(f"平均差異：{diff_mean:.2f}%")
+        print(f"95% CI：[{diff_low:.2f}%, {diff_high:.2f}%]")
 
     max_drawdown = calculate_max_drawdown(strategy_df["actual_avg"])
 
     average_excess = float(strategy_df["excess_return"].mean())
     average_excess_net = float(strategy_df["excess_return_net"].mean())
+    _, net_ci_low, net_ci_high = mean_ci95(strategy_df["excess_return_net"])
     average_turnover = float(strategy_df["turnover"].mean())
     average_actual = float(strategy_df["actual_avg"].mean())
     average_market = float(strategy_df["market_avg"].mean())
@@ -590,6 +684,9 @@ def main():
         "average_actual": average_actual,
         "average_market": average_market,
         "average_excess": average_excess,
+        "average_excess_net": average_excess_net,
+        "excess_net_ci_low": net_ci_low,
+        "excess_net_ci_high": net_ci_high,
         "positive_return_rate": positive_return_rate,
         "outperform_rate": outperform_rate,
         "direction_accuracy": average_direction_accuracy,
@@ -642,6 +739,8 @@ def main():
     print("【V5.9 策略績效分析】")
     print(f"平均超額報酬：{average_excess:.2f}%")
     print(f"平均超額報酬（扣 {COST_ONE_WAY * 100:.1f}% 單邊成本）：{average_excess_net:.2f}%")
+    print(f"扣成本超額 95% CI：[{net_ci_low:.2f}%, {net_ci_high:.2f}%]")
+    print_yearly_breakdown(strategy_df)
     print(f"成本拖累（子組合平均）：{average_excess - average_excess_net:.3f}%")
     print(f"平均換手率：{average_turnover * 100:.2f}%")
 
@@ -681,4 +780,8 @@ def main():
 # ============================================================
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Top-N 回測，可選擇日期區間")
+    parser.add_argument("--start", default=None, help="起始日期 YYYY-MM-DD")
+    parser.add_argument("--end", default=None, help="結束日期 YYYY-MM-DD")
+    cli_args = parser.parse_args()
+    main(start=cli_args.start, end=cli_args.end)
