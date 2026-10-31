@@ -128,10 +128,10 @@ def normalize_symbol(series):
 
 def calculate_max_drawdown(returns):
     """
-    計算最大回撤（百分比，負值）。
+    計算最大回撤（%，負值）。
 
-    輸入為各調倉期間的非重疊報酬（REBALANCE_GAP_DAYS 間隔），
-    以複利串接淨值曲線後取最大峰谷跌幅。
+    輸入為非重疊調倉期的報酬（%），以複利建立權益曲線（起點 1.0），
+    回撤 = 權益 / 歷史最高 - 1，取最小值。
     """
     if returns is None:
         return float("nan")
@@ -148,9 +148,12 @@ def calculate_max_drawdown(returns):
     if series.empty:
         return float("nan")
 
-    equity = (1 + series / 100).cumprod()
-    peak = equity.cummax()
-    drawdown = equity / peak - 1
+    equity = pd.concat(
+        [pd.Series([1.0]), (1 + series / 100).cumprod().reset_index(drop=True)],
+        ignore_index=True,
+    )
+    drawdown = equity / equity.cummax() - 1
+
     return float(drawdown.min() * 100)
 
 
