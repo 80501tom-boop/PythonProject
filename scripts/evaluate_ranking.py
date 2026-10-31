@@ -39,6 +39,7 @@ from config import POOL_BY_SYMBOL, POOL_SYMBOLS  # noqa: E402
 ADJUSTED_PATH = os.path.join(BASE_DIR, "adjusted_prices.csv")
 OUTPUT_PATH = os.path.join(BASE_DIR, "myapp", "ml", "output", "ranking_evaluation.csv")
 PAIRED_OUTPUT_PATH = os.path.join(BASE_DIR, "myapp", "ml", "output", "ranking_paired_compare.csv")
+SCOPE_OUTPUT_PATH = os.path.join(BASE_DIR, "myapp", "ml", "output", "ranking_scope_compare.csv")
 
 LOOK_FORWARD = 20
 BENCHMARK_SYMBOL = "0050"
@@ -303,7 +304,7 @@ def daily_ic(panel, score_col, date_mask, min_names=10):
 
 
 def evaluate_strategy(panel, score_col, idx_start, idx_end, top_n, step=REBALANCE_STEP):
-    """回傳每次調倉的淨超額報酬、換手率與毛報酬。"""
+    """回傳每次調倉的淨超額報酬、換手率、毛報酬與 ETF 佔比。"""
     dates = sorted(panel["date_idx"].unique())
     rebalance_idx = [
         i for i in range(idx_start, idx_end + 1, step)
@@ -341,6 +342,7 @@ def evaluate_strategy(panel, score_col, idx_start, idx_end, top_n, step=REBALANC
             "turnover": turnover,
             "beat_market": float(gross > bench),
             "positive": float(gross > 0),
+            "etf_share": snap.loc[picks, "asset_type"].eq("ETF").mean(),
         }
 
         for cost in COSTS_ONE_SIDE:
@@ -367,6 +369,7 @@ def summarize(name, top_n, ic_series, rec):
         "spread_mean": rec["spread"].mean() if len(rec) else np.nan,
         "beat_market_rate": rec["beat_market"].mean() if len(rec) else np.nan,
         "positive_rate": rec["positive"].mean() if len(rec) else np.nan,
+        "etf_share": rec["etf_share"].mean() if len(rec) else np.nan,
     }
 
     for cost in COSTS_ONE_SIDE:
@@ -431,6 +434,52 @@ def ic_by_asset_type(panel, idx_start, idx_end):
         })
 
     return rows
+
+
+def scope_compare(panel, idx_start, idx_end, score_cols):
+    """比較選股範圍：混合 Top-10、只選個股 Top-10、只選 ETF Top-3；同一分數、同一調倉日。"""
+    scopes = [
+        ("mixed_top10", None, 10),
+        ("stock_only_top10", "STOCK", 10),
+        ("etf_only_top3", "ETF", 3),
+    ]
+    summary_rows = []
+    paired_rows = []
+
+    for score_name, col in score_cols.items():
+        panel["_s"] = panel[col]
+        recs = {}
+
+        for scope, asset, top_n in scopes:
+            sub = panel if asset is None else panel[panel["asset_type"] == asset].copy()
+            rec = evaluate_strategy(sub, "_s", idx_start, idx_end, top_n)
+            recs[scope] = rec
+            row = {"score": score_name, "scope": scope, "top_n": top_n,
+                   "n_rebalance": len(rec)}
+            row["excess_0.001"] = rec["excess_net_0.001"].mean()
+            lo, hi = bootstrap_ci(rec["excess_net_0.001"].values)
+            row["ci_low_0.001"] = lo
+            row["ci_high_0.001"] = hi
+            row["turnover"] = rec["turnover"].mean()
+            row["etf_share"] = rec["etf_share"].mean()
+            summary_rows.append(row)
+
+        for scope in ("stock_only_top10", "etf_only_top3"):
+            merged = recs["mixed_top10"][["date", "excess_net_0.001"]].merge(
+                recs[scope][["date", "excess_net_0.001"]], on="date", suffixes=("_mixed", "_other")
+            )
+            diff = merged["excess_net_0.001_other"] - merged["excess_net_0.001_mixed"]
+            lo, hi = bootstrap_ci(diff.values)
+            paired_rows.append({
+                "score": score_name,
+                "compare": f"{scope}_minus_mixed",
+                "n": len(diff),
+                "mean": diff.mean(),
+                "ci_low": lo,
+                "ci_high": hi,
+            })
+
+    return summary_rows, paired_rows
 
 
 def paired_compare(panel, idx_start, idx_end, col_a, col_b, label):
@@ -545,6 +594,20 @@ def main():
     pair = pd.DataFrame(pair_rows)
     print(pair.round(4).to_string(index=False))
     pair.to_csv(PAIRED_OUTPUT_PATH, index=False, encoding="utf-8-sig")
+
+    print()
+    print("選股範圍比較（完整期間，0050 為基準，扣單邊 0.1% 成本）：")
+    scope_rows, scope_pairs = scope_compare(
+        panel, DEV_START_INDEX, full_end,
+        {"ml_tuned": "ml_tuned", "mom20": "mom20_cs"},
+    )
+    scope_df = pd.DataFrame(scope_rows)
+    print(scope_df.round(4).to_string(index=False))
+    print()
+    print("與混合選股的配對差（正值代表該範圍較好）：")
+    scope_pair_df = pd.DataFrame(scope_pairs)
+    print(scope_pair_df.round(4).to_string(index=False))
+    scope_df.to_csv(SCOPE_OUTPUT_PATH, index=False, encoding="utf-8-sig")
 
     print()
     print(f"輸出：{OUTPUT_PATH}")
