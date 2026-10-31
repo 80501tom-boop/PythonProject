@@ -40,6 +40,7 @@ ADJUSTED_PATH = os.path.join(BASE_DIR, "adjusted_prices.csv")
 OUTPUT_PATH = os.path.join(BASE_DIR, "myapp", "ml", "output", "ranking_evaluation.csv")
 PAIRED_OUTPUT_PATH = os.path.join(BASE_DIR, "myapp", "ml", "output", "ranking_paired_compare.csv")
 SCOPE_OUTPUT_PATH = os.path.join(BASE_DIR, "myapp", "ml", "output", "ranking_scope_compare.csv")
+YEARLY_OUTPUT_PATH = os.path.join(BASE_DIR, "myapp", "ml", "output", "ranking_yearly.csv")
 REVENUE_PATH = os.path.join(BASE_DIR, "myapp", "ml", "output", "monthly_revenue.csv")
 
 LOOK_FORWARD = 20
@@ -530,6 +531,28 @@ def scope_compare(panel, idx_start, idx_end, score_cols):
     return summary_rows, paired_rows
 
 
+def yearly_breakdown(panel, idx_start, idx_end, score_cols, top_n=10):
+    """逐年檢視 Top-N 淨超額（單邊 0.1%），確認超額是否只來自少數年份。"""
+    rows = []
+    idx_to_date = panel.drop_duplicates("date_idx").set_index("date_idx")["date"]
+    for name, col in score_cols.items():
+        panel["_score"] = col
+        rec = evaluate_strategy(panel, "_score", idx_start, idx_end, top_n)
+        rec["year"] = pd.to_datetime(rec["date"].map(idx_to_date)).dt.year
+        for year, grp in rec.groupby("year"):
+            vals = grp["excess_net_0.001"].to_numpy()
+            ci_low, ci_high = bootstrap_ci(vals)
+            rows.append({
+                "strategy": name,
+                "year": int(year),
+                "n_rebalance": len(grp),
+                "excess_0.001": vals.mean(),
+                "ci_low": ci_low,
+                "ci_high": ci_high,
+            })
+    return rows
+
+
 def paired_compare(panel, idx_start, idx_end, col_a, col_b, label):
     """同一日期配對比較兩個分數：每日 IC 差與 Top-10 淨超額差，附 bootstrap 信賴區間。"""
     rows = []
@@ -664,6 +687,20 @@ def main():
     scope_pair_df = pd.DataFrame(scope_pairs)
     print(scope_pair_df.round(4).to_string(index=False))
     scope_df.to_csv(SCOPE_OUTPUT_PATH, index=False, encoding="utf-8-sig")
+
+    print()
+    print("逐年 Top-10 淨超額（完整期間，單邊 0.1%，每年約 12 次調倉，CI 僅供參考）：")
+    yearly_df = pd.DataFrame(yearly_breakdown(
+        panel, DEV_START_INDEX, full_end,
+        {
+            "ml_tuned": panel["ml_tuned"],
+            "rev_yoy": panel["rev_yoy_cs"],
+            "ml_rev": panel["ml_rev"],
+            "mom20": panel["mom20_cs"],
+        },
+    ))
+    print(yearly_df.round(4).to_string(index=False))
+    yearly_df.to_csv(YEARLY_OUTPUT_PATH, index=False, encoding="utf-8-sig")
 
     print()
     print(f"輸出：{OUTPUT_PATH}")
