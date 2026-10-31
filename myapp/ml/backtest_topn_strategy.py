@@ -128,10 +128,10 @@ def normalize_symbol(series):
 
 def calculate_max_drawdown(returns):
     """
-    計算最大回撤（目前停用版）。
+    計算最大回撤（%，負值）。
 
-    為避免誤導，本函式在「重疊 forward return」資料下不計算 MDD，
-    一律回傳 NaN。
+    輸入為非重疊調倉期的報酬（%），以複利建立權益曲線（起點 1.0），
+    回撤 = 權益 / 歷史最高 - 1，取最小值。
     """
     if returns is None:
         return float("nan")
@@ -148,7 +148,13 @@ def calculate_max_drawdown(returns):
     if series.empty:
         return float("nan")
 
-    return float("nan")
+    equity = pd.concat(
+        [pd.Series([1.0]), (1 + series / 100).cumprod().reset_index(drop=True)],
+        ignore_index=True,
+    )
+    drawdown = equity / equity.cummax() - 1
+
+    return float(drawdown.min() * 100)
 
 
 def validate_backtest_input(df, top_n):
