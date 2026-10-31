@@ -68,6 +68,7 @@ LGB_PARAMS = {
     "seed": RANDOM_SEED,
 }
 N_ESTIMATORS = 300
+RIDGE_ALPHA = 1.0
 TUNE_SPLITS = 4
 TUNE_GRID = [
     {"num_leaves": nl, "min_child_samples": mc}
@@ -182,6 +183,48 @@ def add_ml_scores(panel, start_idx, end_idx, params=None, col="ml"):
 
         mask = panel["date_idx"].between(chunk_start, chunk_end)
         panel.loc[mask, col] = model.predict(panel.loc[mask, ML_FEATURES])
+
+        chunk_start = chunk_end + 1
+
+    panel[f"{col}_cs"] = panel.groupby("date")[col].rank(pct=True)
+
+    return panel
+
+
+def train_ridge(panel, train_end_idx):
+    """線性基準：與 LightGBM 相同的訓練列與 embargo，α 固定不調參。"""
+    train = panel[
+        panel["liquid"]
+        & panel["y"].notna()
+        & (panel["date_idx"] + LOOK_FORWARD <= train_end_idx)
+    ].dropna(subset=ML_FEATURES)
+
+    X = train[ML_FEATURES].to_numpy(dtype=float)
+    y = train["y"].to_numpy(dtype=float)
+    x_mean = X.mean(axis=0)
+    y_mean = y.mean()
+    Xc = X - x_mean
+
+    coef = np.linalg.solve(
+        Xc.T @ Xc + RIDGE_ALPHA * np.eye(Xc.shape[1]),
+        Xc.T @ (y - y_mean),
+    )
+    return coef, x_mean, y_mean
+
+
+def add_ridge_scores(panel, start_idx, end_idx, col="ridge"):
+    """walk-forward Ridge：每 RETRAIN_EVERY 日重訓一次；缺值特徵以中位數 0.5 補。"""
+    panel[col] = np.nan
+
+    chunk_start = start_idx
+
+    while chunk_start <= end_idx:
+        chunk_end = min(chunk_start + RETRAIN_EVERY - 1, end_idx)
+        coef, x_mean, y_mean = train_ridge(panel, chunk_start - EMBARGO - 1)
+
+        mask = panel["date_idx"].between(chunk_start, chunk_end)
+        X = panel.loc[mask, ML_FEATURES].fillna(0.5).to_numpy(dtype=float)
+        panel.loc[mask, col] = (X - x_mean) @ coef + y_mean
 
         chunk_start = chunk_end + 1
 
@@ -347,6 +390,8 @@ def run_period(panel, label, idx_start, idx_end, step=REBALANCE_STEP, names=None
         "ml": panel["ml"],
         "blend": panel["blend"],
     }
+    if "ridge" in panel.columns:
+        strategies["ridge"] = panel["ridge"]
     if "ml_tuned" in panel.columns:
         strategies["ml_tuned"] = panel["ml_tuned"]
         strategies["blend_tuned"] = panel["blend_tuned"]
@@ -457,6 +502,8 @@ def main():
     panel["blend"] = (panel["ml_cs"] + panel["mom20_cs"]) / 2
     panel["blend_tuned"] = (panel["ml_tuned_cs"] + panel["mom20_cs"]) / 2
 
+    panel = add_ridge_scores(panel, DEV_START_INDEX, n_dates - LOOK_FORWARD - 1)
+
     full_end = n_dates - LOOK_FORWARD - 1
 
     results = []
@@ -491,6 +538,8 @@ def main():
         ("ml", "mom20_cs", "ml_vs_mom20"),
         ("blend", "mom20_cs", "blend_vs_mom20"),
         ("ml_tuned", "ml", "ml_tuned_vs_ml"),
+        ("ridge", "ml", "ridge_vs_ml"),
+        ("ridge", "mom20_cs", "ridge_vs_mom20"),
     ]:
         pair_rows += paired_compare(panel, DEV_START_INDEX, full_end, col_a, col_b, label)
     pair = pd.DataFrame(pair_rows)
