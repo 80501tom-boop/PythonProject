@@ -1093,14 +1093,14 @@ def market_backtest(request):
 
 def market_strategy(request):
     """
-    V5.7 Top-N 股票選股策略績效頁
+    V5.9 Top-N 股票選股策略績效頁
 
     對應：
     - market_strategy_backtest.csv
     - market_strategy_detail.csv
     - market_strategy_summary.csv
 
-    V5.7 不再使用累積報酬欄位。
+    V5.9 不再使用累積報酬欄位。
     """
 
 
@@ -1186,7 +1186,7 @@ def market_strategy(request):
 
         if missing_columns:
             raise ValueError(
-                "V5.7 策略 CSV 缺少欄位："
+                "V5.9 策略 CSV 缺少欄位："
                 + ", ".join(missing_columns)
             )
 
@@ -1304,7 +1304,7 @@ def market_strategy(request):
         error = str(e)
 
     # ==========================================
-    # 2. 讀取 V5.7 Summary
+    # 2. 讀取 V5.9 Summary
     # ==========================================
 
     try:
