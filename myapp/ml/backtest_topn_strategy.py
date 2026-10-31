@@ -15,7 +15,7 @@ V5.9 - Top-N 股票選股策略回測
 9. 計算超越市場比例
 10. 計算預測方向正確率（排除 actual_return_20 = 0）
 11. 計算最佳／最差回測期間
-12. 最大回撤維持 N/A（避免重疊 forward return 誤導）
+12. 最大回撤：以非重疊調倉期間的毛報酬與扣成本報酬分別複利計算
 13. 不將重疊的 20 日報酬直接複利
 14. prediction_error 定義統一為：
     actual_return_20 - predicted_return_20
@@ -128,10 +128,10 @@ def normalize_symbol(series):
 
 def calculate_max_drawdown(returns):
     """
-    計算最大回撤（目前停用版）。
+    計算最大回撤（百分比，負值）。
 
-    為避免誤導，本函式在「重疊 forward return」資料下不計算 MDD，
-    一律回傳 NaN。
+    輸入為各調倉期間的非重疊報酬（REBALANCE_GAP_DAYS 間隔），
+    以複利串接淨值曲線後取最大峰谷跌幅。
     """
     if returns is None:
         return float("nan")
@@ -148,7 +148,10 @@ def calculate_max_drawdown(returns):
     if series.empty:
         return float("nan")
 
-    return float("nan")
+    equity = (1 + series / 100).cumprod()
+    peak = equity.cummax()
+    drawdown = equity / peak - 1
+    return float(drawdown.min() * 100)
 
 
 def validate_backtest_input(df, top_n):
@@ -613,6 +616,11 @@ def main(start=None, end=None):
         print(f"95% CI：[{diff_low:.2f}%, {diff_high:.2f}%]")
 
     max_drawdown = calculate_max_drawdown(strategy_df["actual_avg"])
+    net_period_returns = (
+        strategy_df["actual_avg"]
+        - strategy_df["turnover"] * 2 * COST_ONE_WAY * 100
+    )
+    max_drawdown_net = calculate_max_drawdown(net_period_returns)
 
     average_excess = float(strategy_df["excess_return"].mean())
     average_excess_net = float(strategy_df["excess_return_net"].mean())
@@ -674,6 +682,11 @@ def main(start=None, end=None):
         if pd.isna(max_drawdown)
         else round(float(max_drawdown), 4)
     )
+    max_drawdown_net_value = (
+        "N/A"
+        if pd.isna(max_drawdown_net)
+        else round(float(max_drawdown_net), 4)
+    )
 
     summary_df = pd.DataFrame([{
         "version": "V5.9",
@@ -693,6 +706,7 @@ def main(start=None, end=None):
         "average_rank_ic": average_rank_ic,
         "top_half_hit_rate": top_half_hit_rate,
         "max_drawdown": max_drawdown_value,
+        "max_drawdown_net": max_drawdown_net_value,
         "best_date": best_date,
         "best_return": best_return,
         "worst_date": worst_date,
@@ -745,9 +759,13 @@ def main(start=None, end=None):
     print(f"平均換手率：{average_turnover * 100:.2f}%")
 
     if pd.isna(max_drawdown):
-        print("最大回撤：N/A（重疊 forward return 不直接計算）")
+        print("最大回撤（毛報酬）：N/A")
     else:
-        print(f"最大回撤：{max_drawdown:.2f}%")
+        print(f"最大回撤（毛報酬，未扣成本）：{max_drawdown:.2f}%")
+    if pd.isna(max_drawdown_net):
+        print("最大回撤（扣成本）：N/A")
+    else:
+        print(f"最大回撤（扣 {COST_ONE_WAY * 100:.1f}% 單邊成本）：{max_drawdown_net:.2f}%")
 
     print(f"最佳回測期間：{best_date} ({best_return:.2f}%)")
     print(f"最差回測期間：{worst_date} ({worst_return:.2f}%)")
