@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-V5.7 - Top-10 策略與 13 檔股票基準比較
+Top-10 策略（49 檔選股池）與 0050 基準比較
 
 功能：
-1. 讀取 market_backtest.csv。
+1. 讀取 market_backtest.csv（0050 基準來自 bench_return_20）。
 2. 讀取 market_strategy_detail.csv。
-3. 比較 Top-10 策略與 13 檔股票基準的實際報酬。
+3. 比較 Top-10 策略與 0050 的實際報酬。
 4. 輸出比較圖表 PNG、PDF 與 CSV。
 5. 顯示中文統計摘要。
 
@@ -48,9 +48,9 @@ STRATEGY_DETAIL_FILE = (
 
 REPORT_DIR = BASE_DIR / "scripts" / "reports"
 
-PNG_FILE = REPORT_DIR / "top5_vs_market_13stocks.png"
-PDF_FILE = REPORT_DIR / "top5_vs_market_13stocks.pdf"
-CSV_FILE = REPORT_DIR / "top5_vs_market_13stocks.csv"
+PNG_FILE = REPORT_DIR / "top10_vs_0050.png"
+PDF_FILE = REPORT_DIR / "top10_vs_0050.pdf"
+CSV_FILE = REPORT_DIR / "top10_vs_0050.csv"
 
 
 # =====================================
@@ -88,10 +88,10 @@ def load_comparison_data():
         "actual_return_20",
     }
 
-    # 檢查回測資料欄位
+    # 檢查回測資料欄位（0050 基準來自 bench_return_20）
     missing_backtest = (
-        required_columns - set(backtest_df.columns)
-    )
+        required_columns | {"bench_return_20"}
+    ) - set(backtest_df.columns)
 
     if missing_backtest:
         raise ValueError(
@@ -127,6 +127,11 @@ def load_comparison_data():
         errors="coerce",
     )
 
+    backtest_df["bench_return_20"] = pd.to_numeric(
+        backtest_df["bench_return_20"],
+        errors="coerce",
+    )
+
     strategy_df["actual_return_20"] = pd.to_numeric(
         strategy_df["actual_return_20"],
         errors="coerce",
@@ -149,11 +154,12 @@ def load_comparison_data():
         .rename("top5_avg_return")
     )
 
-    # 每個回測日期的 13 檔股票平均實際報酬
+    # 每個回測日期的 0050 同期實際報酬（基準）
     market_returns = (
         backtest_df
-        .groupby("date")["actual_return_20"]
-        .mean()
+        .dropna(subset=["bench_return_20"])
+        .groupby("date")["bench_return_20"]
+        .first()
         .rename("market_avg_return")
     )
 
@@ -172,7 +178,7 @@ def load_comparison_data():
             "請確認兩份 CSV 的日期資料。"
         )
 
-    # 超額報酬：Top-10 平均報酬減去股票基準平均報酬
+    # 超額報酬：Top-10 平均報酬減去 0050 報酬
     result["excess_return"] = (
         result["top5_avg_return"]
         - result["market_avg_return"]
@@ -211,7 +217,7 @@ def plot_comparison(result):
         marker="s",
         markersize=3,
         linewidth=1.5,
-        label="13-Stock Benchmark",
+        label="0050 Benchmark",
     )
 
     ax.axhline(
@@ -222,7 +228,7 @@ def plot_comparison(result):
     )
 
     ax.set_title(
-        "Top-10 Strategy vs. 13-Stock Benchmark",
+        "Top-10 Strategy (49-Stock Pool) vs. 0050",
         fontsize=15,
         pad=14,
     )
@@ -318,7 +324,7 @@ def print_summary(result, backtest_df):
     print("\n========== Top-10 與股票基準比較 ==========")
     print(f"比較日期數：{len(result)}")
     print(f"Top-10 平均報酬：{top5_mean:.2f}%")
-    print(f"13 檔股票基準平均報酬：{market_mean:.2f}%")
+    print(f"0050 基準平均報酬：{market_mean:.2f}%")
     print(f"平均超額報酬：{excess_mean:+.2f} 個百分點")
     print(
         "報酬高於基準的回測日期比例："
@@ -333,7 +339,7 @@ def print_summary(result, backtest_df):
 
 def main():
 
-    print("開始比較 Top-10 策略與 13 檔股票基準...")
+    print("開始比較 Top-10 策略與 0050 基準...")
 
     result, backtest_df = load_comparison_data()
 
@@ -354,7 +360,7 @@ def main():
     print_summary(result, backtest_df)
 
     print(f"比較資料已輸出：{CSV_FILE}")
-    print("完成：Top-10 與 13 檔股票基準比較。")
+    print("完成：Top-10 與 0050 基準比較。")
 
 
 if __name__ == "__main__":
