@@ -1093,14 +1093,14 @@ def market_backtest(request):
 
 def market_strategy(request):
     """
-    V5.7 Top-N 股票選股策略績效頁
+    V5.9 Top-N 股票選股策略績效頁
 
     對應：
     - market_strategy_backtest.csv
     - market_strategy_detail.csv
     - market_strategy_summary.csv
 
-    V5.7 不再使用累積報酬欄位。
+    V5.9 不再使用累積報酬欄位。
     """
 
 
@@ -1141,8 +1141,8 @@ def market_strategy(request):
         "positive_return_rate": 0,
         "outperform_rate": 0,
         "direction_accuracy": 0,
-        "max_drawdown": 0,
-        "best_date": "",
+        "max_drawdown": None,
+        "max_drawdown_net": None,
         "best_return": 0,
         "worst_date": "",
         "worst_return": 0,
@@ -1186,7 +1186,7 @@ def market_strategy(request):
 
         if missing_columns:
             raise ValueError(
-                "V5.7 策略 CSV 缺少欄位："
+                "V5.9 策略 CSV 缺少欄位："
                 + ", ".join(missing_columns)
             )
 
@@ -1304,7 +1304,7 @@ def market_strategy(request):
         error = str(e)
 
     # ==========================================
-    # 2. 讀取 V5.7 Summary
+    # 2. 讀取 V5.9 Summary
     # ==========================================
 
     try:
@@ -1430,15 +1430,13 @@ def market_strategy(request):
                     2
                 )
 
-                summary["max_drawdown"] = round(
-                    safe_float(
-                        row.get(
-                            "max_drawdown",
-                            0
-                        )
-                    ),
-                    2
-                )
+                for drawdown_key in ("max_drawdown", "max_drawdown_net"):
+                    drawdown_value = safe_float(row.get(drawdown_key), None)
+                    summary[drawdown_key] = (
+                        None
+                        if drawdown_value is None
+                        else round(drawdown_value, 2)
+                    )
 
                 summary["best_date"] = str(
                     row.get(

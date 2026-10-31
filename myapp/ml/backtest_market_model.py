@@ -16,7 +16,7 @@ V5.1 AI 全市場歷史回測
 10. 匯出完整回測 CSV
 
 注意：
-Top N 選股策略由 V5.4 backtest_topn_strategy.py 負責。
+Top N 選股策略由 V5.9 backtest_topn_strategy.py 負責。
 
 baseline: v10
 current: v12
@@ -661,7 +661,7 @@ def run_single_backtest(
     #
     # 注意：
     # V5.1 必須保存全部股票，
-    # V5.4 才能再從完整資料選 Top N。
+    # V5.9 才能再從完整資料選 Top N。
     # -----------------------------------------------------
 
     top_result = current_df.head(
@@ -708,7 +708,7 @@ def run_single_backtest(
     # 回傳全部股票
     #
     # 不可以只回傳 top_result
-    # 否則 V5.4 還是沒有完整市場資料。
+    # 否則 V5.9 還是沒有完整市場資料。
     # -----------------------------------------------------
 
     return current_df[
