@@ -130,7 +130,7 @@ class PredictionHistory(models.Model):
 
     model_version = models.CharField(
         max_length=50,
-        default="V5.7-FORWARD",
+        default="V5.8-FORWARD",
         verbose_name="模型版本"
     )
 
