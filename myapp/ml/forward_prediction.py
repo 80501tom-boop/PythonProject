@@ -73,6 +73,8 @@ from myapp.models import PredictionHistory
 
 from config import POOL_SYMBOLS, TOP_N, is_eligible
 
+BENCHMARK_SYMBOL = "0050"
+
 ADJUSTED_PATH = os.path.join(BASE_DIR, "adjusted_prices.csv")
 _ADJUSTED_CACHE = {}
 # ============================================================
@@ -390,7 +392,10 @@ def build_market_dataset():
     print("建立全市場資料")
     print("=" * 70)
 
-    stocks = Stock.objects.filter(symbol__in=POOL_SYMBOLS)
+    # 0050 為基準，不參與選股候選
+    stocks = Stock.objects.filter(
+        symbol__in=POOL_SYMBOLS
+    ).exclude(symbol=BENCHMARK_SYMBOL)
 
     market_data = []
     stock_count = 0
