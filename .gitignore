@@ -27,6 +27,8 @@ db.sqlite3
 
 # Large derived data and models (regenerate locally; see data manifest)
 /adjusted_prices.csv
+/dividend_events.csv
+/data/exright_fetched.csv
 /price_gap_report.csv
 myapp/ml/models/*.txt
 
