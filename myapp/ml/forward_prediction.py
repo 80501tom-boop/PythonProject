@@ -35,6 +35,7 @@ import sys
 import django
 import pandas as pd
 import numpy as np
+from django.db.models import Max
 import lightgbm as lgb
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
@@ -257,6 +258,34 @@ def load_adjusted_prices(symbol):
     return adj.loc[adj["symbol"] == symbol, ["date", "adj_close"]]
 
 
+def check_adjusted_prices_current():
+    """確認還原價檔已涵蓋資料庫最新交易日；否則中止，避免預測停在舊日期。"""
+    if not os.path.exists(ADJUSTED_PATH):
+        raise FileNotFoundError(
+            f"找不到 {ADJUSTED_PATH}，請先執行 scripts/adjust_prices.py"
+        )
+
+    adj_max = pd.to_datetime(
+        pd.read_csv(ADJUSTED_PATH, usecols=["date"])["date"]
+    ).max()
+
+    db_max = (
+        StockPrice.objects
+        .filter(stock__symbol__in=POOL_SYMBOLS)
+        .aggregate(latest=Max("date"))["latest"]
+    )
+
+    if db_max is None:
+        raise ValueError("資料庫沒有股票池的股價資料。")
+
+    if pd.Timestamp(db_max) > adj_max:
+        raise RuntimeError(
+            f"還原價檔最新日期 {adj_max:%Y-%m-%d} 落後資料庫 "
+            f"{pd.Timestamp(db_max):%Y-%m-%d}。"
+            "請先執行 scripts/adjust_prices.py 再重跑預測。"
+        )
+
+
 def get_stock_data(stock):
 
     prices = StockPrice.objects.filter(
@@ -297,6 +326,8 @@ def get_stock_data(stock):
         how="left",
     )
 
+    rows_before = len(df)
+
     df = df.dropna(
         subset=[
             "date",
@@ -305,6 +336,11 @@ def get_stock_data(stock):
             "volume"
         ]
     )
+
+    if len(df) < rows_before:
+        print(
+            f"警告：{stock.symbol} 有 {rows_before - len(df)} 筆資料缺少還原價或成交量，已略過"
+        )
 
     df = df.sort_values(
         "date"
@@ -1290,6 +1326,12 @@ def main():
     print(
         f"預測期間：未來 {LOOK_FORWARD} 個交易日"
     )
+
+    # ========================================================
+    # 0. 確認還原價已更新
+    # ========================================================
+
+    check_adjusted_prices_current()
 
     # ========================================================
     # 1. 建立全市場資料

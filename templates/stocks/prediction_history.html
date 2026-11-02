@@ -68,6 +68,20 @@
             background: #16835d;
         }
 
+        .btn-adjust {
+            background: #d97706;
+        }
+
+        .btn-forecast {
+            background: #2563eb;
+        }
+
+        button.is-loading,
+        button:disabled {
+            opacity: 0.75;
+            cursor: wait;
+        }
+
         .experiment-title {
             margin-top: 0;
             font-size: 20px;
@@ -208,9 +222,17 @@
 
         <div class="experiment-actions">
             <form method="post"
+                  action="{% url 'run_adjust_prices' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn-adjust js-run-button">
+                    執行還原收盤價
+                </button>
+            </form>
+
+            <form method="post"
                   action="{% url 'run_forward_prediction' %}">
                 {% csrf_token %}
-                <button type="submit">
+                <button type="submit" class="btn-forecast js-run-button">
                     執行前瞻預測
                 </button>
             </form>
@@ -218,7 +240,7 @@
             <form method="post"
                   action="{% url 'run_forward_evaluation' %}">
                 {% csrf_token %}
-                <button type="submit" class="btn-evaluate">
+                <button type="submit" class="btn-evaluate js-run-button">
                     評估歷史預測績效
                 </button>
             </form>
@@ -226,7 +248,7 @@
 
         <div class="experiment-note muted">
             <strong>操作說明</strong><br>
-            1. 確認股票歷史資料已更新，再執行前瞻預測。<br>
+            1. 確認股票歷史資料已更新，再按「執行還原收盤價」，最後執行前瞻預測。<br>
             2. 評估程式會檢查已累積 20 個後續交易日的預測紀錄。<br>
             3. 尚未到期的預測會繼續等待，不會立即產生實際報酬。
         </div>
@@ -314,5 +336,18 @@
     </p>
 
 </div>
+
+<script>
+    (function () {
+        document.querySelectorAll(".js-run-button").forEach(function (btn) {
+            btn.closest("form").addEventListener("submit", function () {
+                btn.disabled = true;
+                btn.dataset.originalText = btn.textContent;
+                btn.textContent = "執行中，請稍候...";
+                btn.classList.add("is-loading");
+            });
+        });
+    })();
+</script>
 </body>
 </html>

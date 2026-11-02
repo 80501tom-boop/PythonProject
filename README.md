@@ -33,10 +33,11 @@
 
 ## 前瞻追蹤（每日流程）
 
-1. 更新股價資料，確保有當天收盤價。
-2. 執行前瞻預測：`python myapp/ml/forward_prediction.py`，或網頁「執行前瞻預測」。同一交易日重跑不會重複寫入。
-3. 評估到期紀錄：`python myapp/ml/evaluate_forward_predictions.py`，或網頁「評估歷史預測績效」。
-4. 判斷（選做）：`python scripts/judge_forward.py`，只在需要看超額與 CI 時執行，結果不存檔。
+1. 更新股價資料：`python scripts/import_history.py all`（失敗即停止，不要往下執行）。
+2. 重新還原股價：`python scripts/adjust_prices.py`（股價缺漏或落後時會中止，不覆寫舊檔）。
+3. 執行前瞻預測：`python myapp/ml/forward_prediction.py`，或網頁「執行前瞻預測」。還原價落後資料庫時會中止。同一交易日重跑不會重複寫入。
+4. 評估到期紀錄：`python myapp/ml/evaluate_forward_predictions.py`，或網頁「評估歷史預測績效」。
+5. 判斷（選做）：`python scripts/judge_forward.py`，只在需要看超額與 CI 時執行，結果不存檔。
 
 注意：不要因短期結果調整模型或參數。判斷以 12 個月以上的前瞻為準。
 
