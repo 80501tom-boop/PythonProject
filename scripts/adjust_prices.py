@@ -59,6 +59,7 @@ MANUAL_DEFAULT = os.path.join(DATA_DIR, "manual_events.csv")
 
 ADJUSTED_PATH = os.path.join(BASE_DIR, "adjusted_prices.csv")
 EVENTS_PATH = os.path.join(BASE_DIR, "dividend_events.csv")
+FETCHED_PATH = os.path.join(DATA_DIR, "exright_fetched.csv")
 
 # 除權息前收盤價與資料庫前一交易日收盤價的允許差異
 PREV_CLOSE_TOLERANCE = 0.01
@@ -151,9 +152,19 @@ def load_prices():
     return df.sort_values(["symbol", "date"]).reset_index(drop=True)
 
 
-def build_events(twse_path, tpex_path, symbols, manual_path=MANUAL_DEFAULT):
+def load_fetched(path):
+    """讀取 fetch_exright.py 抓取的除權息結果（UTF-8）。"""
+    if not os.path.exists(path):
+        return pd.DataFrame(columns=["symbol", "ex_date", "prev_close", "ref_price", "source"])
+
+    df = pd.read_csv(path, dtype={"symbol": str}, encoding="utf-8-sig")
+    df["ex_date"] = pd.to_datetime(df["ex_date"])
+    return df[["symbol", "ex_date", "prev_close", "ref_price", "source"]]
+
+
+def build_events(twse_path, tpex_path, symbols, manual_path=MANUAL_DEFAULT, fetched_path=FETCHED_PATH):
     events = pd.concat(
-        [load_twse(twse_path), load_tpex(tpex_path)],
+        [load_twse(twse_path), load_tpex(tpex_path), load_fetched(fetched_path)],
         ignore_index=True,
     )
 
@@ -260,7 +271,18 @@ def main():
         "--tpex", default=TPEX_DEFAULT,
         help="上櫃除權息 CSV 路徑（預設 data/tpex_exright_2021_2026.csv）",
     )
+    parser.add_argument(
+        "--no-fetch", action="store_true",
+        help="不先抓取最新除權息資料，直接使用現有檔案",
+    )
     args = parser.parse_args()
+
+    if not args.no_fetch:
+        try:
+            import fetch_exright
+            fetch_exright.fetch_latest()
+        except Exception as e:
+            print(f"警告：抓取除權息資料失敗，改用現有檔案：{e}")
 
     prices = load_prices()
     symbols = set(prices["symbol"].unique())
