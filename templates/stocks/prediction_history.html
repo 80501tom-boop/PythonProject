@@ -68,6 +68,20 @@
             background: #16835d;
         }
 
+        .btn-adjust {
+            background: #d97706;
+        }
+
+        .btn-forecast {
+            background: #2563eb;
+        }
+
+        button.is-loading,
+        button:disabled {
+            opacity: 0.75;
+            cursor: wait;
+        }
+
         .experiment-title {
             margin-top: 0;
             font-size: 20px;
@@ -210,7 +224,7 @@
             <form method="post"
                   action="{% url 'run_adjust_prices' %}">
                 {% csrf_token %}
-                <button type="submit" class="js-run-button">
+                <button type="submit" class="btn-adjust js-run-button">
                     執行還原收盤價
                 </button>
             </form>
@@ -218,7 +232,7 @@
             <form method="post"
                   action="{% url 'run_forward_prediction' %}">
                 {% csrf_token %}
-                <button type="submit" class="js-run-button">
+                <button type="submit" class="btn-forecast js-run-button">
                     執行前瞻預測
                 </button>
             </form>
@@ -230,8 +244,6 @@
                     評估歷史預測績效
                 </button>
             </form>
-
-            <span id="run-status" class="muted"></span>
         </div>
 
         <div class="experiment-note muted">
@@ -327,20 +339,12 @@
 
 <script>
     (function () {
-        const buttons = document.querySelectorAll(".js-run-button");
-        const status = document.getElementById("run-status");
-
-        buttons.forEach(function (button) {
-            button.closest("form").addEventListener("submit", function () {
-                const originalText = button.textContent;
-
-                setTimeout(function () {
-                    buttons.forEach(function (b) {
-                        b.disabled = true;
-                    });
-                    button.textContent = "執行中…";
-                    status.textContent = "「" + originalText.trim() + "」執行中，請勿關閉頁面…";
-                }, 0);
+        document.querySelectorAll(".js-run-button").forEach(function (btn) {
+            btn.closest("form").addEventListener("submit", function () {
+                btn.disabled = true;
+                btn.dataset.originalText = btn.textContent;
+                btn.textContent = "執行中，請稍候...";
+                btn.classList.add("is-loading");
             });
         });
     })();
