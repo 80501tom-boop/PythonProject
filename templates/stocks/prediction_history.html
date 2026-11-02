@@ -210,7 +210,7 @@
             <form method="post"
                   action="{% url 'run_adjust_prices' %}">
                 {% csrf_token %}
-                <button type="submit">
+                <button type="submit" class="js-run-button">
                     執行還原收盤價
                 </button>
             </form>
@@ -218,7 +218,7 @@
             <form method="post"
                   action="{% url 'run_forward_prediction' %}">
                 {% csrf_token %}
-                <button type="submit">
+                <button type="submit" class="js-run-button">
                     執行前瞻預測
                 </button>
             </form>
@@ -226,10 +226,12 @@
             <form method="post"
                   action="{% url 'run_forward_evaluation' %}">
                 {% csrf_token %}
-                <button type="submit" class="btn-evaluate">
+                <button type="submit" class="btn-evaluate js-run-button">
                     評估歷史預測績效
                 </button>
             </form>
+
+            <span id="run-status" class="muted"></span>
         </div>
 
         <div class="experiment-note muted">
@@ -322,5 +324,26 @@
     </p>
 
 </div>
+
+<script>
+    (function () {
+        const buttons = document.querySelectorAll(".js-run-button");
+        const status = document.getElementById("run-status");
+
+        buttons.forEach(function (button) {
+            button.closest("form").addEventListener("submit", function () {
+                const originalText = button.textContent;
+
+                setTimeout(function () {
+                    buttons.forEach(function (b) {
+                        b.disabled = true;
+                    });
+                    button.textContent = "執行中…";
+                    status.textContent = "「" + originalText.trim() + "」執行中，請勿關閉頁面…";
+                }, 0);
+            });
+        });
+    })();
+</script>
 </body>
 </html>
