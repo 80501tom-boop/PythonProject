@@ -9,7 +9,7 @@ fetch_exright.py
     python scripts/fetch_exright.py --start 2025-01-01    # 指定起始日
     python scripts/fetch_exright.py --start 2025-01-01 --end 2026-11-02
 
-注意：TPEX_URL 與上櫃欄位格式尚未經實際連線驗證，請先在本機測試。
+注意：上櫃端點依 TPEx bulletin/exDailyQ 格式實作，尚未在本機實際連線驗證。
 """
 import argparse
 import os
@@ -25,7 +25,7 @@ BASE_DIR = os.path.dirname(
 FETCHED_PATH = os.path.join(BASE_DIR, "data", "exright_fetched.csv")
 
 TWSE_URL = "https://www.twse.com.tw/rwd/zh/exRight/TWT49U"
-TPEX_URL = "https://www.tpex.org.tw/www/zh-tw/bulletin/exRight"
+TPEX_URL = "https://www.tpex.org.tw/www/zh-tw/bulletin/exDailyQ"
 
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 TIMEOUT = 30
@@ -64,7 +64,13 @@ def month_ranges(start, end):
 def get_json(url, params):
     resp = requests.get(url, params=params, headers=HEADERS, timeout=TIMEOUT)
     resp.raise_for_status()
-    return resp.json()
+    try:
+        return resp.json()
+    except ValueError:
+        raise RuntimeError(
+            f"{url} 回傳非 JSON（狀態 {resp.status_code}，"
+            f"類型 {resp.headers.get('content-type')}）：{resp.text[:300]}"
+        )
 
 
 def fetch_twse(start, end):
@@ -92,7 +98,7 @@ def fetch_twse(start, end):
 
 
 def fetch_tpex(start, end):
-    """上櫃：除權息計算結果（格式待驗證，預期 tables[0] 內含 fields/data）。"""
+    """上櫃：bulletin/exDailyQ 除權息計算結果，回傳 tables[0] 的 fields/data，依欄位名稱取值。"""
     rows = []
     for s, e in month_ranges(start, end):
         payload = get_json(TPEX_URL, {
