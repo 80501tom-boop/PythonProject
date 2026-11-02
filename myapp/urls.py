@@ -49,6 +49,11 @@ urlpatterns = [
         name="prediction_performance",
     ),
     path(
+        "run-adjust-prices/",
+        views.run_adjust_prices,
+        name="run_adjust_prices",
+    ),
+    path(
         "run-forward-prediction/",
         views.run_forward_prediction,
         name="run_forward_prediction",

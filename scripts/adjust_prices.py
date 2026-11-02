@@ -269,6 +269,28 @@ def main():
     events = check_events(events, prices)
 
     adjusted = adjust(prices, events)
+
+    # 寫入前檢查：股票池缺漏或部分股票落後，中止且不覆寫舊檔
+    missing = sorted(set(POOL_SYMBOLS) - symbols)
+    if missing:
+        sys.exit(f"錯誤：資料庫缺少股票池股價 {missing}，已中止，未覆寫 adjusted_prices.csv")
+
+    latest_by_symbol = prices.groupby("symbol")["date"].max()
+    global_latest = latest_by_symbol.max()
+    stale = sorted(latest_by_symbol[latest_by_symbol < global_latest].index)
+    if stale:
+        sys.exit(
+            f"錯誤：以下股票最新日期落後 {global_latest:%Y-%m-%d}：{stale}；"
+            "請先執行 scripts/import_history.py all 後再重跑，未覆寫 adjusted_prices.csv"
+        )
+
+    last_event = events["ex_date"].max()
+    if pd.notna(last_event) and last_event < global_latest - pd.Timedelta(days=7):
+        print(
+            f"警告：除權息事件最新為 {last_event:%Y-%m-%d}，早於股價最新 {global_latest:%Y-%m-%d}；"
+            "若期間有除權息，請更新 data/ 內的除權息 CSV"
+        )
+
     adjusted.to_csv(ADJUSTED_PATH, index=False, encoding="utf-8-sig")
     events.to_csv(EVENTS_PATH, index=False, encoding="utf-8-sig")
 

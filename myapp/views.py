@@ -1900,6 +1900,97 @@ def run_forward_prediction(request):
     return redirect("prediction_history")
 
 
+def run_adjust_prices(request):
+    """重新計算還原收盤價（adjust_prices.py），供前瞻預測前使用。"""
+
+    LOCK_KEY = "stock_ai_adjust_prices_running"
+
+    if request.method != "POST":
+        return redirect("prediction_history")
+
+    if not cache.add(LOCK_KEY, True, timeout=1800):
+        messages.warning(
+            request,
+            "還原收盤價正在計算中，請勿重複點擊。"
+        )
+        return redirect("prediction_history")
+
+    try:
+        script_path = os.path.join(
+            settings.BASE_DIR,
+            "scripts",
+            "adjust_prices.py"
+        )
+
+        if not os.path.isfile(script_path):
+            messages.error(
+                request,
+                f"找不到還原收盤價程式：{script_path}"
+            )
+            return redirect("prediction_history")
+
+        result = subprocess.run(
+            [sys.executable, script_path],
+            cwd=str(settings.BASE_DIR),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env={
+                **os.environ,
+                "PYTHONUTF8": "1",
+            },
+            timeout=1800,
+        )
+
+        output = (result.stdout or "").strip()
+        error_text = (result.stderr or "").strip()
+
+        if result.returncode != 0:
+            messages.error(
+                request,
+                "還原收盤價計算失敗："
+                + (
+                    (error_text or output)[-800:]
+                    or "請檢查終端機錯誤訊息。"
+                )
+            )
+            return redirect("prediction_history")
+
+        warning_lines = [
+            line for line in output.splitlines() if line.startswith("警告")
+        ]
+
+        if warning_lines:
+            messages.warning(
+                request,
+                "還原收盤價已更新，但有警告："
+                + "；".join(warning_lines)[-800:]
+            )
+        else:
+            messages.success(
+                request,
+                "還原收盤價已更新。"
+            )
+
+    except subprocess.TimeoutExpired:
+        messages.error(
+            request,
+            "還原收盤價計算超過 30 分鐘，請檢查程式是否仍在運作。"
+        )
+
+    except Exception as e:
+        messages.error(
+            request,
+            f"還原收盤價計算發生錯誤：{e}"
+        )
+
+    finally:
+        cache.delete(LOCK_KEY)
+
+    return redirect("prediction_history")
+
+
 def run_forward_evaluation(request):
     """執行前瞻預測績效評估。"""
 
