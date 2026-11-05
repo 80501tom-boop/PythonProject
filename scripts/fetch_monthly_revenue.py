@@ -82,8 +82,11 @@ def main():
     out.to_csv(OUTPUT_PATH, index=False, encoding="utf-8-sig")
 
     print(f"成功：{out['symbol'].nunique()} 檔，共 {len(out)} 筆")
-    print(f"期間：{out['revenue_year'].min()}/{out['revenue_month'].min()} ～ "
-          f"{out['revenue_year'].max()}/{out['revenue_month'].max()}")
+    periods = out[["revenue_year", "revenue_month"]].drop_duplicates()
+    first = periods.sort_values(["revenue_year", "revenue_month"]).iloc[0]
+    last = periods.sort_values(["revenue_year", "revenue_month"]).iloc[-1]
+    print(f"期間：{first.revenue_year}/{first.revenue_month} ～ "
+          f"{last.revenue_year}/{last.revenue_month}")
     if failed:
         print(f"失敗：{failed}")
     print(f"輸出：{OUTPUT_PATH}")
