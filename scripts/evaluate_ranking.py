@@ -33,7 +33,7 @@ os.environ.setdefault(
 django.setup()
 
 from myapp.models import Stock, StockPrice  # noqa: E402
-from config import POOL_BY_SYMBOL, POOL_SYMBOLS  # noqa: E402
+from config import POOL_BY_SYMBOL, POOL_SYMBOLS, is_eligible  # noqa: E402
 
 
 ADJUSTED_PATH = os.path.join(BASE_DIR, "adjusted_prices.csv")
@@ -126,7 +126,13 @@ def build_panel(raw):
     p["vol20"] = g["ret1"].transform(lambda s: s.rolling(20).std())
     p["vma20"] = g["volume"].transform(lambda s: s.rolling(20).mean())
     p["volratio20"] = p["volume"] / p["vma20"]
-    p["liquid"] = p["vma20"] >= MIN_AVG_VOLUME_20
+    # 上市時點規則（USE_POOL_START=True 時才會排除上市前的資料）
+    eligible = [
+        is_eligible(s, d) for s, d in zip(p["symbol"], p["date"].dt.date)
+    ]
+    p["liquid"] = (p["vma20"] >= MIN_AVG_VOLUME_20) & pd.Series(
+        eligible, index=p.index
+    )
 
     p["fwd20"] = g["adj_close"].shift(-LOOK_FORWARD) / p["adj_close"] - 1
 
