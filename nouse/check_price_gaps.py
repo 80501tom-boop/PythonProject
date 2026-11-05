@@ -13,7 +13,7 @@ check_price_gaps.py
 5. 單日報酬絕對值超過 20%（可能是未還原的除權息或股票分割）。
 
 使用方式：
-    python scripts/check_price_gaps.py
+    python nouse/check_price_gaps.py
 
 輸出：終端機摘要，以及專案根目錄下的 price_gap_report.csv。
 """

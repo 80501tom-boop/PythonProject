@@ -8,12 +8,6 @@ Top-10 策略（49 檔選股池）與 0050 基準比較
 3. 比較 Top-10 策略與 0050 的實際報酬。
 4. 輸出比較圖表 PNG、PDF 與 CSV。
 5. 顯示中文統計摘要。
-
-本次微修正：
-- 圖表標題、座標軸與圖例使用英文。
-- 移除遮擋折線的摘要框。
-- 圖例移至圖表上方。
-- 不修改原有報酬率計算方式。
 """
 
 from pathlib import Path
@@ -147,11 +141,11 @@ def load_comparison_data():
     )
 
     # 每個回測日期的 Top-10 平均實際報酬
-    top5_returns = (
+    top10_returns = (
         strategy_df
         .groupby("date")["actual_return_20"]
         .mean()
-        .rename("top5_avg_return")
+        .rename("top10_avg_return")
     )
 
     # 每個回測日期的 0050 同期實際報酬（基準）
@@ -165,7 +159,7 @@ def load_comparison_data():
 
     # 合併相同回測日期
     result = pd.concat(
-        [top5_returns, market_returns],
+        [top10_returns, market_returns],
         axis=1,
         join="inner",
     ).dropna()
@@ -180,7 +174,7 @@ def load_comparison_data():
 
     # 超額報酬：Top-10 平均報酬減去 0050 報酬
     result["excess_return"] = (
-        result["top5_avg_return"]
+        result["top10_avg_return"]
         - result["market_avg_return"]
     )
 
@@ -197,14 +191,14 @@ def plot_comparison(result):
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
 
     dates = result["date"]
-    top5 = result["top5_avg_return"]
+    top10 = result["top10_avg_return"]
     market = result["market_avg_return"]
 
     fig, ax = plt.subplots(figsize=(11, 5.8))
 
     ax.plot(
         dates,
-        top5,
+        top10,
         marker="o",
         markersize=3,
         linewidth=1.8,
@@ -301,11 +295,11 @@ def plot_comparison(result):
 
 def print_summary(result, backtest_df):
 
-    top5_mean = result["top5_avg_return"].mean()
+    top10_mean = result["top10_avg_return"].mean()
     market_mean = result["market_avg_return"].mean()
 
     excess_mean = (
-        top5_mean - market_mean
+        top10_mean - market_mean
     )
 
     outperform_ratio = (
@@ -323,7 +317,7 @@ def print_summary(result, backtest_df):
 
     print("\n========== Top-10 與股票基準比較 ==========")
     print(f"比較日期數：{len(result)}")
-    print(f"Top-10 平均報酬：{top5_mean:.2f}%")
+    print(f"Top-10 平均報酬：{top10_mean:.2f}%")
     print(f"0050 基準平均報酬：{market_mean:.2f}%")
     print(f"平均超額報酬：{excess_mean:+.2f} 個百分點")
     print(

@@ -23,7 +23,7 @@
 - 64% 的期間優於 0050。
 - 最大回撤（以各期報酬複利計算）：毛報酬 -28.34%，扣成本 -29.15%。
 
-圖表與資料：`scripts/reports/top10_vs_0050.{png,pdf,csv}`，由 `scripts/plot_top5_market_comparison.py` 產生。
+圖表與資料：`scripts/reports/top10_vs_0050.{png,pdf,csv}`，由 `scripts/plot_top10_market_comparison.py` 產生。
 
 ## 結論
 
