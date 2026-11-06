@@ -45,7 +45,8 @@
 
 - 樣本僅 64 期，統計檢定力有限。
 - 回撤與超額均以歷史回測計算；交易成本採單邊 0.1% 固定假設，未模擬滑價。
-- `evaluate_ranking.py` 目前未套用 `config.is_eligible` 的上市時點規則，須在引用前修正。
+- **存活者偏差**：股票池為現在的 49 檔，回推歷史只納入後來存活的股票，會高估策略超額報酬。`USE_POOL_START` 只能處理上市時點，無法納入已下市或移出股票池的股票，因此所有超額報酬數字都應視為偏樂觀的上限。
+- `evaluate_ranking.py` 已套用 `config.is_eligible` 的上市時點規則；但 `USE_POOL_START = False` 時等同不過濾，偏差仍在。
 - 網頁顯示最大回撤需重新執行 V5.9 回測，產生含 `max_drawdown_net` 的 summary CSV。
 
 ## 版本標示
