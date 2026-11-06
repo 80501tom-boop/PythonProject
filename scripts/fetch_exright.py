@@ -83,6 +83,7 @@ def fetch_twse(start, end):
             "response": "json",
         })
         if not payload.get("data"):
+            print(f"警告：上市 {s:%Y-%m} 無除權息資料（可能是 API 未回傳，或該月確實無事件）")
             continue
 
         idx = {str(name).strip(): i for i, name in enumerate(payload["fields"])}
@@ -108,6 +109,7 @@ def fetch_tpex(start, end):
         })
         tables = payload.get("tables") or []
         if not tables or not tables[0].get("data"):
+            print(f"警告：上櫃 {s:%Y-%m} 無除權息資料（可能是 API 未回傳，或該月確實無事件）")
             continue
 
         table = tables[0]
@@ -136,8 +138,11 @@ def default_start():
 
 def save(new_df):
     """合併既有抓取結果，以 source + symbol + ex_date 去重後寫入。"""
+    before = len(new_df)
     new_df = new_df.dropna(subset=["ex_date", "prev_close", "ref_price"])
     new_df = new_df[(new_df["prev_close"] > 0) & (new_df["ref_price"] > 0)]
+    if len(new_df) < before:
+        print(f"警告：{before - len(new_df)} 筆除權息資料因缺值或價格非正數被略過")
 
     if os.path.exists(FETCHED_PATH):
         old = pd.read_csv(
