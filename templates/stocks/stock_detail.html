@@ -22,6 +22,9 @@
     <!-- 共用 CSS -->
 
     <link rel="stylesheet"
+          href="{% static 'stocks/base.css' %}">
+
+    <link rel="stylesheet"
           href="{% static 'stocks/style.css' %}">
 
 
@@ -41,17 +44,7 @@
      導覽列
 ================================================== -->
 
-<header class="navbar">
-
-    <div class="logo">
-        STOCK AI
-    </div>
-
-    <div class="nav-title">
-        AI 量化選股與回測系統
-    </div>
-
-</header>
+{% include 'stocks/partials/navbar.html' %}
 
 
 

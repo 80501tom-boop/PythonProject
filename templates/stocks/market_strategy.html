@@ -2,6 +2,7 @@
 <html lang="zh-Hant">
 
 <head>
+{% load static %}
 
     <meta charset="UTF-8">
 
@@ -492,10 +493,12 @@
 
     </style>
 
+    <link rel="stylesheet" href="{% static 'stocks/base.css' %}">
 </head>
 
 
 <body>
+{% include 'stocks/partials/navbar.html' %}
 
 <div class="container">
 

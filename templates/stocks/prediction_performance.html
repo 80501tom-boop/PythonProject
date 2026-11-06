@@ -6,6 +6,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>STOCK AI｜預測績效</title>
+    <link rel="stylesheet" href="{% static 'stocks/base.css' %}">
     <link rel="stylesheet" href="{% static 'stocks/style.css' %}">
 
     <style>
@@ -188,15 +189,7 @@
 
 <body>
 
-<header class="navbar">
-    <div class="logo">STOCK AI</div>
-    <nav>
-        <a href="/">首頁</a>
-        <a href="{% url 'market_ranking' %}">AI 選股排名</a>
-        <a href="{% url 'prediction_history' %}">歷史預測</a>
-        <a href="{% url 'prediction_performance' %}">預測績效</a>
-    </nav>
-</header>
+{% include 'stocks/partials/navbar.html' %}
 
 <main class="container">
 

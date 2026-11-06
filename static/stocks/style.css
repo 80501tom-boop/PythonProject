@@ -23,24 +23,6 @@ a {
    導覽列
 ========================= */
 
-.navbar {
-    background: #111827;
-    color: white;
-    padding: 18px 8%;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.logo {
-    font-size: 24px;
-    font-weight: bold;
-}
-
-.nav-title {
-    font-size: 14px;
-    color: #d1d5db;
-}
 
 
 /* =========================
@@ -200,11 +182,6 @@ a {
 ========================= */
 
 @media (max-width: 600px) {
-    .navbar {
-        flex-direction: column;
-        gap: 8px;
-    }
-
     .search-form {
         flex-direction: column;
     }

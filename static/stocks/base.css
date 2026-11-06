@@ -1,0 +1,102 @@
+/* =========================================================
+   共用設計變數與元件（所有頁面共用）
+========================================================= */
+
+:root {
+    --color-primary: #2563eb;
+    --color-dark: #111827;
+    --color-text: #222;
+    --color-muted: #6b7280;
+    --color-border: #e5e7eb;
+    --color-bg: #f5f7fa;
+    --color-card: #ffffff;
+    --radius: 10px;
+    --shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+
+/* 導覽列貼齊頁面頂端（部分頁面 body 有 padding） */
+body:has(> .site-nav) {
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+
+/* =========================================================
+   導覽列
+========================================================= */
+
+.site-nav {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 8%;
+    background: var(--color-dark);
+    color: #ffffff;
+}
+
+.site-brand {
+    font-size: 22px;
+    font-weight: bold;
+    color: #ffffff;
+    text-decoration: none;
+}
+
+.site-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.site-links a {
+    padding: 6px 12px;
+    border-radius: 6px;
+    color: #d1d5db;
+    text-decoration: none;
+    font-size: 14px;
+}
+
+.site-links a:hover {
+    background: #1f2937;
+    color: #ffffff;
+}
+
+
+/* =========================================================
+   快速連結卡片（首頁）
+========================================================= */
+
+.quick-links {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+    margin: 24px 0;
+}
+
+.quick-card {
+    display: block;
+    padding: 18px;
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    color: var(--color-text);
+    text-decoration: none;
+}
+
+.quick-card strong {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--color-primary);
+}
+
+.quick-card span {
+    font-size: 13px;
+    color: var(--color-muted);
+}
+
+.quick-card:hover {
+    border-color: var(--color-primary);
+}

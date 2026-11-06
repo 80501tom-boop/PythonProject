@@ -14,6 +14,9 @@
     <title>STOCK AI 股票分析平台</title>
 
     <link rel="stylesheet"
+          href="{% static 'stocks/base.css' %}">
+
+    <link rel="stylesheet"
           href="{% static 'stocks/style.css' %}">
 
 </head>
@@ -26,17 +29,7 @@
      導覽列
 ========================= -->
 
-<header class="navbar">
-
-    <div class="logo">
-        STOCK AI
-    </div>
-
-    <div class="nav-title">
-        AI 量化選股與回測系統
-    </div>
-
-</header>
+{% include 'stocks/partials/navbar.html' %}
 
 
 
@@ -121,6 +114,36 @@
     <!-- =========================
         搜尋結果 / 股票清單
     ================ -->
+    <!-- =========================
+        快速連結（其他頁面）
+    ========================= -->
+    <section class="quick-links">
+        <a class="quick-card" href="{% url 'market_strategy' %}">
+            <strong>策略</strong>
+            <span>選股策略說明</span>
+        </a>
+        <a class="quick-card" href="{% url 'market_ranking' %}">
+            <strong>AI 選股排名</strong>
+            <span>每日預測排名</span>
+        </a>
+        <a class="quick-card" href="{% url 'prediction_history' %}">
+            <strong>歷史預測</strong>
+            <span>過去的預測紀錄</span>
+        </a>
+        <a class="quick-card" href="{% url 'prediction_performance' %}">
+            <strong>預測績效</strong>
+            <span>預測準確度統計</span>
+        </a>
+        <a class="quick-card" href="{% url 'market_backtest' %}">
+            <strong>回測結果</strong>
+            <span>歷史回測與圖表</span>
+        </a>
+        <a class="quick-card" href="{% url 'admin:login' %}">
+            <strong>登入</strong>
+            <span>管理者登入</span>
+        </a>
+    </section>
+
     <section class="stock-section">
         {% if query %}
             <h2>搜尋「{{ query }}」的結果</h2>
