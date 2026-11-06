@@ -21,6 +21,15 @@ body:has(> .site-nav) {
     margin: 0 !important;
 }
 
+/* 導覽列與頁面內容之間的距離統一（覆蓋各頁容器的 margin） */
+.site-nav {
+    margin-bottom: 32px;
+}
+
+.site-nav + * {
+    margin-top: 0 !important;
+}
+
 
 /* =========================================================
    導覽列
