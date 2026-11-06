@@ -973,28 +973,27 @@
         </p>
 
 
-        {% if stocks %}
+        {% if stock_symbols %}
 
 
         <!-- =================================================
-             股票切換
+             股票切換（伺服器端連結）
         ================================================== -->
 
         <div class="stock-tabs">
 
 
-            {% for symbol, rows in stocks.items %}
+            {% for symbol in stock_symbols %}
 
 
-            <button
-                class="stock-tab {% if forloop.first %}active{% endif %}"
-                onclick="switchStock('{{ symbol }}')"
-                data-symbol="{{ symbol }}"
+            <a
+                class="stock-tab {% if symbol == selected_symbol %}active{% endif %}"
+                href="?symbol={{ symbol }}"
             >
 
                 {{ symbol }}
 
-            </button>
+            </a>
 
 
             {% endfor %}
@@ -1004,19 +1003,10 @@
 
 
         <!-- =================================================
-             每支股票
+             目前選取的股票（分頁顯示）
         ================================================== -->
 
-        {% for symbol, rows in stocks.items %}
-
-
-        <div
-            class="stock-panel"
-            id="stock-{{ symbol }}"
-            {% if not forloop.first %}
-            style="display:none;"
-            {% endif %}
-        >
+        <div class="stock-panel" id="stock-{{ selected_symbol }}">
 
 
             <!-- Stock Header -->
@@ -1028,7 +1018,7 @@
 
                     <span class="stock-symbol">
 
-                        {{ symbol }}
+                        {{ selected_symbol }}
 
                     </span>
 
@@ -1044,7 +1034,7 @@
 
                 <span class="stock-count">
 
-                    共 {{ rows|length }} 筆
+                    共 {{ page_obj.paginator.count }} 筆
 
                 </span>
 
@@ -1096,7 +1086,7 @@
                     <tbody>
 
 
-                        {% for row in rows %}
+                        {% for row in page_obj %}
 
 
                         <tr class="backtest-row">
@@ -1168,35 +1158,25 @@
             <div class="pagination">
 
 
-                <button
-                    class="page-btn"
-                    onclick="changePage('{{ symbol }}', -1)"
-                    data-prev="{{ symbol }}"
-                >
-
-                    上一頁
-
-                </button>
+                {% if page_obj.has_previous %}
+                <a class="page-btn" href="?symbol={{ selected_symbol }}&page={{ page_obj.previous_page_number }}">上一頁</a>
+                {% else %}
+                <button class="page-btn" disabled>上一頁</button>
+                {% endif %}
 
 
                 <span class="page-info">
 
                     第
 
-                    <span
-                        class="current-page"
-                        data-page="{{ symbol }}"
-                    >
-                        1
+                    <span class="current-page">
+                        {{ page_obj.number }}
                     </span>
 
                     /
 
-                    <span
-                        class="total-pages"
-                        data-total="{{ symbol }}"
-                    >
-                        1
+                    <span class="total-pages">
+                        {{ page_obj.paginator.num_pages }}
                     </span>
 
                     頁
@@ -1204,15 +1184,11 @@
                 </span>
 
 
-                <button
-                    class="page-btn"
-                    onclick="changePage('{{ symbol }}', 1)"
-                    data-next="{{ symbol }}"
-                >
-
-                    下一頁
-
-                </button>
+                {% if page_obj.has_next %}
+                <a class="page-btn" href="?symbol={{ selected_symbol }}&page={{ page_obj.next_page_number }}">下一頁</a>
+                {% else %}
+                <button class="page-btn" disabled>下一頁</button>
+                {% endif %}
 
 
             </div>
@@ -1220,8 +1196,6 @@
 
         </div>
 
-
-        {% endfor %}
 
 
         {% else %}
@@ -1320,323 +1294,8 @@
 
 
 <!-- =========================================================
-     股票分頁 JavaScript
-========================================================= -->
-
-<script>
-
-
-const PAGE_SIZE = 20;
-
-
-const currentPages = {};
-
-
-/* =========================================================
-   股票切換
-========================================================= */
-
-function switchStock(symbol) {
-
-
-    document
-        .querySelectorAll(".stock-panel")
-        .forEach(function(panel) {
-
-            panel.style.display = "none";
-
-        });
-
-
-    document
-        .querySelectorAll(".stock-tab")
-        .forEach(function(button) {
-
-            button.classList.remove(
-                "active"
-            );
-
-        });
-
-
-    const panel =
-        document.getElementById(
-            "stock-" + symbol
-        );
-
-
-    if (panel) {
-
-        panel.style.display = "block";
-
-    }
-
-
-    const button =
-        document.querySelector(
-            '.stock-tab[data-symbol="' +
-            symbol +
-            '"]'
-        );
-
-
-    if (button) {
-
-        button.classList.add(
-            "active"
-        );
-
-    }
-
-
-    if (!currentPages[symbol]) {
-
-        currentPages[symbol] = 1;
-
-    }
-
-
-    showPage(
-        symbol,
-        currentPages[symbol]
-    );
-
-}
-
-
-/* =========================================================
-   顯示頁面
-========================================================= */
-
-function showPage(
-    symbol,
-    page
-) {
-
-
-    const panel =
-        document.getElementById(
-            "stock-" + symbol
-        );
-
-
-    if (!panel) {
-
-        return;
-
-    }
-
-
-    const rows =
-        panel.querySelectorAll(
-            ".backtest-row"
-        );
-
-
-    const totalPages =
-        Math.max(
-            1,
-            Math.ceil(
-                rows.length /
-                PAGE_SIZE
-            )
-        );
-
-
-    if (page < 1) {
-
-        page = 1;
-
-    }
-
-
-    if (page > totalPages) {
-
-        page = totalPages;
-
-    }
-
-
-    currentPages[symbol] =
-        page;
-
-
-    const start =
-        (page - 1) *
-        PAGE_SIZE;
-
-
-    const end =
-        start +
-        PAGE_SIZE;
-
-
-    rows.forEach(
-        function(row, index) {
-
-
-            if (
-                index >= start &&
-                index < end
-            ) {
-
-                row.style.display = "";
-
-            } else {
-
-                row.style.display =
-                    "none";
-
-            }
-
-        }
-    );
-
-
-    const currentPage =
-        panel.querySelector(
-            '.current-page[data-page="' +
-            symbol +
-            '"]'
-        );
-
-
-    if (currentPage) {
-
-        currentPage.textContent =
-            page;
-
-    }
-
-
-    const totalPage =
-        panel.querySelector(
-            '.total-pages[data-total="' +
-            symbol +
-            '"]'
-        );
-
-
-    if (totalPage) {
-
-        totalPage.textContent =
-            totalPages;
-
-    }
-
-
-    const prev =
-        panel.querySelector(
-            '.page-btn[data-prev="' +
-            symbol +
-            '"]'
-        );
-
-
-    if (prev) {
-
-        prev.disabled =
-            page === 1;
-
-    }
-
-
-    const next =
-        panel.querySelector(
-            '.page-btn[data-next="' +
-            symbol +
-            '"]'
-        );
-
-
-    if (next) {
-
-        next.disabled =
-            page === totalPages;
-
-    }
-
-}
-
-
-/* =========================================================
-   上一頁 / 下一頁
-========================================================= */
-
-function changePage(
-    symbol,
-    direction
-) {
-
-
-    const current =
-        currentPages[symbol] || 1;
-
-
-    showPage(
-        symbol,
-        current + direction
-    );
-
-}
-
-
-/* =========================================================
-   初始化股票分頁
-========================================================= */
-
-document.addEventListener(
-    "DOMContentLoaded",
-    function() {
-
-
-        document
-            .querySelectorAll(".stock-tab")
-            .forEach(function(button) {
-
-
-                const symbol =
-                    button.dataset.symbol;
-
-
-                currentPages[symbol] =
-                    1;
-
-
-                showPage(
-                    symbol,
-                    1
-                );
-
-            });
-
-
-        const firstTab =
-            document.querySelector(
-                ".stock-tab"
-            );
-
-
-        if (firstTab) {
-
-            switchStock(
-                firstTab.dataset.symbol
-            );
-
-        }
-
-    }
-);
-
-
-</script>
-
-
-<!-- =========================================================
      回測圖表 JavaScript
 ========================================================= -->
-
-<script>
 
 /* =========================================================
    回測資料

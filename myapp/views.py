@@ -803,15 +803,7 @@ def prediction_history(request):
 # 市場回測
 # ============================================================
 
-def market_backtest(request):
-
-    csv_path = os.path.join(
-        settings.BASE_DIR,
-        "myapp",
-        "ml",
-        "output",
-        "market_backtest.csv"
-    )
+def _build_backtest_data(csv_path):
 
     stocks = {}
     summary = {}
@@ -1072,17 +1064,57 @@ def market_backtest(request):
 
                 )
 
-    # ==================================================
-    # Render
-    # ==================================================
+    return {
+        "stocks": stocks,
+        "summary": summary,
+        "performance": performance,
+    }
+
+
+def market_backtest(request):
+
+    csv_path = os.path.join(
+        settings.BASE_DIR,
+        "myapp",
+        "ml",
+        "output",
+        "market_backtest.csv"
+    )
+
+    # CSV 未變動時直接使用快取，避免每次重算
+    mtime = (
+        os.path.getmtime(csv_path)
+        if os.path.exists(csv_path)
+        else None
+    )
+    cache_key = f"market_backtest_data:{mtime}"
+    data = cache.get(cache_key)
+
+    if data is None:
+        data = _build_backtest_data(csv_path)
+        cache.set(cache_key, data, timeout=None)
+
+    stocks = data["stocks"]
+    stock_symbols = sorted(stocks.keys())
+
+    selected_symbol = request.GET.get("symbol")
+    if selected_symbol not in stocks:
+        selected_symbol = stock_symbols[0] if stock_symbols else None
+
+    page_obj = None
+    if selected_symbol:
+        paginator = Paginator(stocks[selected_symbol], 20)
+        page_obj = paginator.get_page(request.GET.get("page"))
 
     return render(
         request,
         "stocks/market_backtest.html",
         {
-            "stocks": stocks,
-            "summary": summary,
-            "performance": performance,
+            "summary": data["summary"],
+            "performance": data["performance"],
+            "stock_symbols": stock_symbols,
+            "selected_symbol": selected_symbol,
+            "page_obj": page_obj,
         }
     )
 
