@@ -118,10 +118,6 @@
         快速連結（其他頁面）
     ========================= -->
     <section class="quick-links">
-        <a class="quick-card" href="{% url 'market_strategy' %}">
-            <strong>策略</strong>
-            <span>選股策略說明</span>
-        </a>
         <a class="quick-card" href="{% url 'market_ranking' %}">
             <strong>AI 選股排名</strong>
             <span>每日預測排名</span>
@@ -137,6 +133,10 @@
         <a class="quick-card" href="{% url 'market_backtest' %}">
             <strong>回測結果</strong>
             <span>歷史回測與圖表</span>
+        </a>
+        <a class="quick-card" href="{% url 'market_strategy' %}">
+            <strong>策略回測</strong>
+            <span>Top-N 選股策略績效</span>
         </a>
         <a class="quick-card" href="{% url 'admin:login' %}">
             <strong>登入</strong>
