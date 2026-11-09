@@ -4,7 +4,7 @@
 
 標準：
 - 前瞻期間需 >= 12 個月（365 天），否則只顯示累積狀況，不下結論。
-- 每 20 個交易日取一次非重疊的調倉樣本。
+- 每 28 個日曆天取一次非重疊的調倉樣本（與回測一致，約 20 個交易日）。
 - 淨超額 = Top-10 平均 20 日實際報酬 - 0050 同期報酬 - 換手成本（單邊 0.1%）。
 - 成功：95% CI 下界 > 0；失敗：95% CI 上界 < 0；其餘為未定。
 
@@ -29,7 +29,7 @@ MODEL_VERSION = "V5.8-FORWARD"
 BENCH_SYMBOL = "0050"
 TOP_N = 10
 HORIZON = 20
-REBALANCE_STEP = 20
+REBALANCE_GAP_DAYS = 28
 COST_ONE_SIDE = 0.001
 MIN_SPAN_DAYS = 365
 BOOTSTRAP_N = 2000
@@ -50,11 +50,12 @@ def load_bench_adjusted():
     return prices
 
 
-def select_nonoverlap_dates(dates, step=REBALANCE_STEP):
-    """從已排序的信號日中，每 step 個交易日取一個（避免重疊樣本）。"""
+def select_nonoverlap_dates(dates, min_gap_days=REBALANCE_GAP_DAYS):
+    """從已排序的信號日中取樣，相鄰樣本至少相隔 min_gap_days 個日曆天（避免重疊）。"""
     kept = []
-    for i in range(0, len(dates), step):
-        kept.append(dates[i])
+    for d in dates:
+        if not kept or (d - kept[-1]).days >= min_gap_days:
+            kept.append(d)
     return kept
 
 
