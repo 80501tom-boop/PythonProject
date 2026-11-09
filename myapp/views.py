@@ -319,6 +319,12 @@ def add_stock(request):
                 f"，記錄：{log_path}"
             )
 
+            messages.info(
+                request,
+                f"已開始背景抓取 {symbol} 歷史資料（{months} 個月），"
+                "完成後會自動加入模型，進度請看下方狀態"
+            )
+
             with open(log_path, "w", encoding="utf-8") as log_file:
                 subprocess.Popen(
                     [

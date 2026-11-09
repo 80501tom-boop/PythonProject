@@ -55,6 +55,10 @@
 <main class="detail-container">
 
 
+{% for message in messages %}
+<div class="import-status">{{ message }}</div>
+{% endfor %}
+
 {% if import_status %}
 <div class="import-status">
     歷史資料狀態：{{ import_status }}
