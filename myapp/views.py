@@ -18,46 +18,17 @@ from django.views.decorators.http import require_POST
 
 from config import TOP_N
 
+from .import_status import (
+    HISTORY_START_YEAR,
+    import_status,
+    months_since_history_start,
+)
 from .models import Stock, StockPrice, PredictionHistory
 
 from scripts.import_history import (
     update_stock,
     update_all_stocks,
 )
-
-HISTORY_START_YEAR = 2021
-IMPORT_STALE_SECONDS = 60 * 60
-
-
-def _months_since_history_start():
-    today = datetime.now()
-    return (today.year - HISTORY_START_YEAR) * 12 + today.month
-
-
-def _import_status(symbol):
-    """回傳背景抓取狀態：None / 抓取中 / 完成 / 失敗 / 可能已中止。"""
-    import time
-
-    log_path = os.path.join(
-        str(settings.BASE_DIR), "data", "import_logs", f"{symbol}.log"
-    )
-
-    if not os.path.isfile(log_path):
-        return None
-
-    with open(log_path, encoding="utf-8", errors="replace") as f:
-        text = f.read()
-
-    if "新增股票流程完成" in text:
-        return "完成"
-
-    if "新增股票流程失敗" in text or "匯入未完全成功" in text:
-        return "失敗"
-
-    if time.time() - os.path.getmtime(log_path) < IMPORT_STALE_SECONDS:
-        return "抓取中"
-
-    return "可能已中止"
 
 # ============================================================
 # 首頁
@@ -334,7 +305,7 @@ def add_stock(request):
                 f"{symbol} 尚無歷史資料"
             )
 
-            months = _months_since_history_start()
+            months = months_since_history_start()
 
             log_dir = os.path.join(
                 str(settings.BASE_DIR), "data", "import_logs"
@@ -699,7 +670,7 @@ def stock_detail(request, symbol):
 
     context = {
 
-        "import_status": _import_status(symbol),
+        "import_status": import_status(symbol, settings.BASE_DIR),
 
         "stock": stock,
 

@@ -261,6 +261,19 @@ def validate_example(adjusted):
     print(f"驗證 2882 2026-06-29：還原收盤 {adj:.2f}（預期約 98.00）")
 
 
+def find_incomplete_adjusted(prices, adjusted):
+    """回傳還原價不完整的股票代號（筆數不符或有空值）。"""
+    per_price = prices.groupby("symbol").size()
+    per_adj_rows = adjusted.groupby("symbol").size()
+    nan_counts = adjusted["adj_close"].isna().groupby(adjusted["symbol"]).sum()
+
+    return sorted(
+        sym for sym in per_price.index
+        if per_adj_rows.get(sym, 0) != per_price[sym]
+        or nan_counts.get(sym, 0) > 0
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(description="計算還原收盤價")
     parser.add_argument(
@@ -316,16 +329,8 @@ def main():
             "若期間有除權息，請更新 data/ 內的除權息 CSV"
         )
 
-    # 逐檔檢查：還原價不可有空值，且筆數需與原始股價相同
-    per_price = prices.groupby("symbol").size()
-    per_adj = adjusted.groupby("symbol")["adj_close"].agg(["size", lambda s: s.isna().sum()])
-    per_adj.columns = ["rows", "nan"]
-    broken = sorted(
-        sym for sym in per_price.index
-        if sym not in per_adj.index
-        or per_adj.loc[sym, "rows"] != per_price[sym]
-        or per_adj.loc[sym, "nan"] > 0
-    )
+        # 逐檔檢查：還原價不可有空值，且筆數需與原始股價相同
+    broken = find_incomplete_adjusted(prices, adjusted)
     if broken:
         sys.exit(f"錯誤：以下股票還原價不完整：{broken}，已中止，未覆寫 adjusted_prices.csv")
 
