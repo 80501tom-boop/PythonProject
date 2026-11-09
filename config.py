@@ -9,6 +9,7 @@
 
 import csv
 import os
+import sys
 from datetime import date
 
 
@@ -16,13 +17,19 @@ def _load_stock_pool():
     """從資料庫 Stock 表讀取股票池。
 
     ETF 以代號開頭 "00" 判定；pool_start 由 _load_pool_start() 補上。
+    若 Django 尚未初始化（例如直接執行 python -c "import config"），會自動初始化。
     """
-    try:
-        from myapp.models import Stock
-    except Exception as e:
-        raise RuntimeError(
-            "config.py 需在 Django 初始化後匯入（請先呼叫 django.setup()）"
-        ) from e
+    import django
+    from django.apps import apps
+
+    if not apps.ready:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        if base_dir not in sys.path:
+            sys.path.append(base_dir)
+        os.environ.setdefault("DJANGO_SETTINGS_MODULE", "PythonProject.settings")
+        django.setup()
+
+    from myapp.models import Stock
 
     pool = [
         {
