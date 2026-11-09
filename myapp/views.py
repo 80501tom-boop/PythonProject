@@ -21,6 +21,7 @@ from config import TOP_N
 from .models import Stock, StockPrice, PredictionHistory
 
 from scripts.import_history import (
+    import_stock,
     update_stock,
     update_all_stocks,
 )
@@ -309,35 +310,26 @@ def add_stock(request):
 
             months = _months_since_history_start()
 
-            log_dir = os.path.join(
-                str(settings.BASE_DIR), "data", "import_logs"
-            )
-            os.makedirs(log_dir, exist_ok=True)
-            log_path = os.path.join(log_dir, f"{symbol}.log")
-
             print(
-                f"開始背景抓取 {symbol} 歷史資料"
-                f"（{HISTORY_START_YEAR} 年起，共 {months} 個月）"
-                f"，記錄：{log_path}"
+                f"開始抓取 {symbol} 歷史資料"
+                f"（{HISTORY_START_YEAR} 年起，共 {months} 個月）..."
             )
 
-            with open(log_path, "w", encoding="utf-8") as log_file:
-                subprocess.Popen(
-                    [
-                        sys.executable,
-                        os.path.join(
-                            str(settings.BASE_DIR),
-                            "scripts",
-                            "import_history.py",
-                        ),
-                        symbol,
-                        "--months",
-                        str(months),
-                    ],
-                    cwd=str(settings.BASE_DIR),
-                    stdout=log_file,
-                    stderr=subprocess.STDOUT,
-                    env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+            success = import_stock(
+                symbol,
+                months=months,
+            )
+
+            if success:
+
+                print(
+                    f"{symbol} 歷史資料完成"
+                )
+
+            else:
+
+                print(
+                    f"{symbol} 歷史資料抓取失敗"
                 )
 
         else:
