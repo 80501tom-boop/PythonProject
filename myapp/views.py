@@ -21,10 +21,16 @@ from config import TOP_N
 from .models import Stock, StockPrice, PredictionHistory
 
 from scripts.import_history import (
-    import_stock,
     update_stock,
     update_all_stocks,
 )
+
+HISTORY_START_YEAR = 2021
+
+
+def _months_since_history_start():
+    today = datetime.now()
+    return (today.year - HISTORY_START_YEAR) * 12 + today.month
 
 # ============================================================
 # 首頁
@@ -301,24 +307,37 @@ def add_stock(request):
                 f"{symbol} 尚無歷史資料"
             )
 
+            months = _months_since_history_start()
+
+            log_dir = os.path.join(
+                str(settings.BASE_DIR), "data", "import_logs"
+            )
+            os.makedirs(log_dir, exist_ok=True)
+            log_path = os.path.join(log_dir, f"{symbol}.log")
+
             print(
-                f"開始抓取 {symbol} 近一年歷史資料..."
+                f"開始背景抓取 {symbol} 歷史資料"
+                f"（{HISTORY_START_YEAR} 年起，共 {months} 個月）"
+                f"，記錄：{log_path}"
             )
 
-            success = import_stock(
-                symbol
-            )
-
-            if success:
-
-                print(
-                    f"{symbol} 近一年歷史資料完成"
-                )
-
-            else:
-
-                print(
-                    f"{symbol} 歷史資料抓取失敗"
+            with open(log_path, "w", encoding="utf-8") as log_file:
+                subprocess.Popen(
+                    [
+                        sys.executable,
+                        os.path.join(
+                            str(settings.BASE_DIR),
+                            "scripts",
+                            "import_history.py",
+                        ),
+                        symbol,
+                        "--months",
+                        str(months),
+                    ],
+                    cwd=str(settings.BASE_DIR),
+                    stdout=log_file,
+                    stderr=subprocess.STDOUT,
+                    env={**os.environ, "PYTHONIOENCODING": "utf-8"},
                 )
 
         else:
