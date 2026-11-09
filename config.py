@@ -42,7 +42,7 @@ def _load_stock_pool():
     ]
 
     if not pool:
-        raise RuntimeError("資料庫 Stock 表為空，股票池無法建立")
+        print("警告：資料庫 Stock 表為空，股票池為空", file=sys.stderr)
 
     return pool
 
