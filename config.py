@@ -3,7 +3,8 @@
 """
 專案共用設定：股票池與 point-in-time 納入規則。
 
-不依賴 Django，可被 scripts/ 與 myapp/ml/ 直接匯入。
+股票池來自資料庫 Stock 表（網頁新增／刪除即同步），
+因此需在 django.setup() 之後才能匯入。
 """
 
 import csv
@@ -11,61 +12,36 @@ import os
 from datetime import date
 
 
-# 股票池：asset_type 為 "ETF" 或 "STOCK"；
-# pool_start 為首次納入日（None 表示資料起點即納入）。
-# 0050 保留、006208 已移除（同一標的只保留一檔）。
-STOCK_POOL = [
-    {"symbol": "0050", "market": "TWSE", "asset_type": "ETF", "pool_start": None},
-    {"symbol": "0052", "market": "TWSE", "asset_type": "ETF", "pool_start": None},
-    {"symbol": "0056", "market": "TWSE", "asset_type": "ETF", "pool_start": None},
-    {"symbol": "00713", "market": "TWSE", "asset_type": "ETF", "pool_start": None},
-    {"symbol": "00877", "market": "TPEx", "asset_type": "ETF", "pool_start": None},
-    {"symbol": "00878", "market": "TWSE", "asset_type": "ETF", "pool_start": None},
-    {"symbol": "00919", "market": "TWSE", "asset_type": "ETF", "pool_start": None},
-    {"symbol": "00929", "market": "TWSE", "asset_type": "ETF", "pool_start": None},
-    {"symbol": "00951", "market": "TWSE", "asset_type": "ETF", "pool_start": None},
-    {"symbol": "00981A", "market": "TWSE", "asset_type": "ETF", "pool_start": None},
-    {"symbol": "1216", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "1301", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "1303", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "2059", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "2303", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "2308", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "2317", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "2327", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "2330", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "2345", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "2357", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "2376", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "2382", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "2383", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "2408", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "2412", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "2454", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "2603", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "2615", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "2880", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "2881", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "2882", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "2884", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "2885", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "2886", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "2890", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "2891", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "2892", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "2912", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "3008", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "3017", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "3037", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "3045", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "3231", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "3653", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "3711", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "4904", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "5274", "market": "TPEx", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "6505", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-    {"symbol": "6669", "market": "TWSE", "asset_type": "STOCK", "pool_start": None},
-]
+def _load_stock_pool():
+    """從資料庫 Stock 表讀取股票池。
+
+    ETF 以代號開頭 "00" 判定；pool_start 由 _load_pool_start() 補上。
+    """
+    try:
+        from myapp.models import Stock
+    except Exception as e:
+        raise RuntimeError(
+            "config.py 需在 Django 初始化後匯入（請先呼叫 django.setup()）"
+        ) from e
+
+    pool = [
+        {
+            "symbol": s.symbol,
+            "market": s.market,
+            "asset_type": "ETF" if s.symbol.startswith("00") else "STOCK",
+            "pool_start": None,
+        }
+        for s in Stock.objects.order_by("symbol")
+    ]
+
+    if not pool:
+        raise RuntimeError("資料庫 Stock 表為空，股票池無法建立")
+
+    return pool
+
+
+# asset_type 為 "ETF" 或 "STOCK"；pool_start 為首次納入日（None 表示資料起點即納入）。
+STOCK_POOL = _load_stock_pool()
 
 POOL_SYMBOLS = [item["symbol"] for item in STOCK_POOL]
 

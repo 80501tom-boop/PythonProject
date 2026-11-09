@@ -14,11 +14,15 @@ import os
 import sys
 import time
 
+import django
 import pandas as pd
 import requests
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(BASE_DIR)
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "PythonProject.settings")
+django.setup()
 
 from config import STOCK_POOL  # noqa: E402
 
