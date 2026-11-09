@@ -21,13 +21,12 @@ from config import TOP_N
 from .models import Stock, StockPrice, PredictionHistory
 
 from scripts.import_history import (
-    import_stock,
     update_stock,
     update_all_stocks,
 )
 
 HISTORY_START_YEAR = 2021
-IMPORT_STALE_SECONDS = 30 * 60
+IMPORT_STALE_SECONDS = 60 * 60
 
 
 def _months_since_history_start():
@@ -49,10 +48,10 @@ def _import_status(symbol):
     with open(log_path, encoding="utf-8", errors="replace") as f:
         text = f.read()
 
-    if "匯入完成" in text:
+    if "新增股票流程完成" in text:
         return "完成"
 
-    if "匯入未完全成功" in text or "匯入失敗" in text:
+    if "新增股票流程失敗" in text or "匯入未完全成功" in text:
         return "失敗"
 
     if time.time() - os.path.getmtime(log_path) < IMPORT_STALE_SECONDS:
@@ -356,10 +355,9 @@ def add_stock(request):
                         os.path.join(
                             str(settings.BASE_DIR),
                             "scripts",
-                            "import_history.py",
+                            "add_stock_pipeline.py",
                         ),
                         symbol,
-                        "--months",
                         str(months),
                     ],
                     cwd=str(settings.BASE_DIR),

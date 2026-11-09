@@ -517,7 +517,7 @@ def build_market_dataset():
 
     print(f"股票總數：{stock_count}")
     print(f"有效股票：{valid_count}")
-    print(f"流動性不足略過：{low_liquidity_count}")
+    print(f"流動性不足略過（股票-日筆數）：{low_liquidity_count}")
     print(f"資料總筆數：{len(market_df)}")
     print(
         f"資料日期："

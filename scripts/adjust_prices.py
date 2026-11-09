@@ -282,7 +282,10 @@ def main():
             import fetch_exright
             fetch_exright.fetch_latest()
         except Exception as e:
-            print(f"警告：抓取除權息資料失敗，改用現有檔案：{e}")
+            sys.exit(
+                f"錯誤：抓取除權息資料失敗，已中止，未覆寫 adjusted_prices.csv：{e}\n"
+                "若要改用現有檔案，請加上 --no-fetch 參數"
+            )
 
     prices = load_prices()
     symbols = set(prices["symbol"].unique())
@@ -312,6 +315,19 @@ def main():
             f"警告：除權息事件最新為 {last_event:%Y-%m-%d}，早於股價最新 {global_latest:%Y-%m-%d}；"
             "若期間有除權息，請更新 data/ 內的除權息 CSV"
         )
+
+    # 逐檔檢查：還原價不可有空值，且筆數需與原始股價相同
+    per_price = prices.groupby("symbol").size()
+    per_adj = adjusted.groupby("symbol")["adj_close"].agg(["size", lambda s: s.isna().sum()])
+    per_adj.columns = ["rows", "nan"]
+    broken = sorted(
+        sym for sym in per_price.index
+        if sym not in per_adj.index
+        or per_adj.loc[sym, "rows"] != per_price[sym]
+        or per_adj.loc[sym, "nan"] > 0
+    )
+    if broken:
+        sys.exit(f"錯誤：以下股票還原價不完整：{broken}，已中止，未覆寫 adjusted_prices.csv")
 
     adjusted.to_csv(ADJUSTED_PATH, index=False, encoding="utf-8-sig")
     events.to_csv(EVENTS_PATH, index=False, encoding="utf-8-sig")
