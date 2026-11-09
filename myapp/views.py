@@ -27,11 +27,38 @@ from scripts.import_history import (
 )
 
 HISTORY_START_YEAR = 2021
+IMPORT_STALE_SECONDS = 30 * 60
 
 
 def _months_since_history_start():
     today = datetime.now()
     return (today.year - HISTORY_START_YEAR) * 12 + today.month
+
+
+def _import_status(symbol):
+    """回傳背景抓取狀態：None / 抓取中 / 完成 / 失敗 / 可能已中止。"""
+    import time
+
+    log_path = os.path.join(
+        str(settings.BASE_DIR), "data", "import_logs", f"{symbol}.log"
+    )
+
+    if not os.path.isfile(log_path):
+        return None
+
+    with open(log_path, encoding="utf-8", errors="replace") as f:
+        text = f.read()
+
+    if "匯入完成" in text:
+        return "完成"
+
+    if "匯入未完全成功" in text or "匯入失敗" in text:
+        return "失敗"
+
+    if time.time() - os.path.getmtime(log_path) < IMPORT_STALE_SECONDS:
+        return "抓取中"
+
+    return "可能已中止"
 
 # ============================================================
 # 首頁
@@ -310,26 +337,39 @@ def add_stock(request):
 
             months = _months_since_history_start()
 
+            log_dir = os.path.join(
+                str(settings.BASE_DIR), "data", "import_logs"
+            )
+            os.makedirs(log_dir, exist_ok=True)
+            log_path = os.path.join(log_dir, f"{symbol}.log")
+
             print(
-                f"開始抓取 {symbol} 歷史資料"
-                f"（{HISTORY_START_YEAR} 年起，共 {months} 個月）..."
+                f"開始背景抓取 {symbol} 歷史資料"
+                f"（{HISTORY_START_YEAR} 年起，共 {months} 個月）"
+                f"，記錄：{log_path}"
             )
 
-            success = import_stock(
-                symbol,
-                months=months,
-            )
-
-            if success:
-
-                print(
-                    f"{symbol} 歷史資料完成"
-                )
-
-            else:
-
-                print(
-                    f"{symbol} 歷史資料抓取失敗"
+            with open(log_path, "w", encoding="utf-8") as log_file:
+                subprocess.Popen(
+                    [
+                        sys.executable,
+                        os.path.join(
+                            str(settings.BASE_DIR),
+                            "scripts",
+                            "import_history.py",
+                        ),
+                        symbol,
+                        "--months",
+                        str(months),
+                    ],
+                    cwd=str(settings.BASE_DIR),
+                    stdout=log_file,
+                    stderr=subprocess.STDOUT,
+                    env={
+                        **os.environ,
+                        "PYTHONIOENCODING": "utf-8",
+                        "PYTHONUNBUFFERED": "1",
+                    },
                 )
 
         else:
@@ -661,9 +701,10 @@ def stock_detail(request, symbol):
 
     context = {
 
+        "import_status": _import_status(symbol),
+
         "stock": stock,
 
-        "prices": prices,
 
         "latest_price": latest_price,
 
