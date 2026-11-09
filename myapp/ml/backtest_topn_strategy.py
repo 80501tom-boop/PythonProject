@@ -79,6 +79,10 @@ LOOK_FORWARD = 20
 # 非重疊調倉：20 個交易日約 28 個日曆天
 REBALANCE_GAP_DAYS = 28
 
+# 極端報酬截尾（winsorize）百分位，避免單一極端值主導平均超額報酬
+WINSOR_LOW_Q = 0.01
+WINSOR_HIGH_Q = 0.99
+
 
 # ============================================================
 # 輸出格式
@@ -435,6 +439,22 @@ def main(start=None, end=None):
     if start is not None or end is not None:
         print(f"期間篩選：{start or '起始'} ～ {end or '結束'}，剩餘 {len(df)} 筆")
 
+    # 保留原始報酬供明細核對；回測統計使用截尾後報酬
+    df["actual_return_20_raw"] = df["actual_return_20"]
+
+    if not df.empty:
+        winsor_low, winsor_high = df["actual_return_20"].quantile(
+            [WINSOR_LOW_Q, WINSOR_HIGH_Q]
+        )
+        df["actual_return_20"] = df["actual_return_20"].clip(
+            lower=winsor_low,
+            upper=winsor_high,
+        )
+        print(
+            f"actual_return_20 截尾範圍（{WINSOR_LOW_Q:.0%}～{WINSOR_HIGH_Q:.0%}）："
+            f"[{winsor_low:.2f}%, {winsor_high:.2f}%]"
+        )
+
     try:
         validate_backtest_input(df, TOP_N)
     except ValueError as exc:
@@ -571,6 +591,7 @@ def main(start=None, end=None):
                 "symbol": str(stock["symbol"]).zfill(4),
                 "predicted_return_20": float(stock["predicted_return_20"]),
                 "actual_return_20": float(stock["actual_return_20"]),
+                "actual_return_20_raw": float(stock["actual_return_20_raw"]),
                 "prediction_error": float(
                     stock["actual_return_20"] - stock["predicted_return_20"]
                 ),
@@ -627,6 +648,7 @@ def main(start=None, end=None):
 
     average_excess = float(strategy_df["excess_return"].mean())
     average_excess_net = float(strategy_df["excess_return_net"].mean())
+    median_excess_net = float(strategy_df["excess_return_net"].median())
     _, net_ci_low, net_ci_high = mean_ci95(strategy_df["excess_return_net"])
     average_turnover = float(strategy_df["turnover"].mean())
     average_actual = float(strategy_df["actual_avg"].mean())
@@ -701,6 +723,7 @@ def main(start=None, end=None):
         "average_market": average_market,
         "average_excess": average_excess,
         "average_excess_net": average_excess_net,
+        "median_excess_net": median_excess_net,
         "excess_net_ci_low": net_ci_low,
         "excess_net_ci_high": net_ci_high,
         "positive_return_rate": positive_return_rate,
@@ -756,6 +779,7 @@ def main(start=None, end=None):
     print("【V5.9 策略績效分析】")
     print(f"平均超額報酬：{average_excess:.2f}%")
     print(f"平均超額報酬（扣 {COST_ONE_WAY * 100:.1f}% 單邊成本）：{average_excess_net:.2f}%")
+    print(f"中位數超額報酬（扣成本）：{median_excess_net:.2f}%")
     print(f"扣成本超額 95% CI：[{net_ci_low:.2f}%, {net_ci_high:.2f}%]")
     print_yearly_breakdown(strategy_df)
     print(f"成本拖累（子組合平均）：{average_excess - average_excess_net:.3f}%")

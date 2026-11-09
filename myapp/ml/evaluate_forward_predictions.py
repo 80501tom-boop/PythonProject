@@ -16,8 +16,10 @@ V6.1 - 前瞻預測實際績效追蹤
     python myapp/ml/evaluate_forward_predictions.py
 """
 
+import csv
 import os
 import sys
+from datetime import date, datetime
 from pathlib import Path
 from decimal import (
     Decimal,
@@ -56,6 +58,8 @@ from myapp.models import Stock, StockPrice, PredictionHistory
 VERSION = "V6.1"
 FOUR_PLACES = Decimal("0.0001")
 ZERO = Decimal("0")
+ADJUSTED_PATH = BASE_DIR / "adjusted_prices.csv"
+_ADJ_CACHE = {}
 
 
 # ==================================================
@@ -73,6 +77,38 @@ def to_decimal(value):
         raise ValueError("數值不是有效的有限數字")
 
     return result
+
+
+def load_adjusted_map():
+    """
+    讀取還原收盤價，回傳 {symbol: [(date, adj_close), ...]}（依日期排序）。
+
+    預測時的訓練標籤也使用還原價，評估需使用同一基準，
+    否則高配息標的（如 ETF）會被低估報酬。
+    """
+    if "map" in _ADJ_CACHE:
+        return _ADJ_CACHE["map"]
+
+    if not ADJUSTED_PATH.exists():
+        raise FileNotFoundError(
+            f"找不到 {ADJUSTED_PATH}，請先執行 scripts/adjust_prices.py"
+        )
+
+    grouped = {}
+
+    with ADJUSTED_PATH.open(newline="", encoding="utf-8-sig") as f:
+        for row in csv.DictReader(f):
+            symbol = normalize_symbol(row["symbol"])
+            day = date.fromisoformat(row["date"].strip()[:10])
+            grouped.setdefault(symbol, []).append(
+                (day, to_decimal(row["adj_close"]))
+            )
+
+    for rows in grouped.values():
+        rows.sort(key=lambda item: item[0])
+
+    _ADJ_CACHE["map"] = grouped
+    return grouped
 
 
 def normalize_symbol(value):
@@ -192,13 +228,8 @@ def evaluate_one(record):
         print(f"[略過] {symbol}：找不到對應的 Stock")
         return "missing_stock"
 
-    # 基準價格必須有效
+    # 基準價與實際價皆使用還原收盤價，報酬才不會被配息扭曲
     try:
-        base_price = to_decimal(record.close_price)
-
-        if base_price <= ZERO:
-            raise ValueError("基準收盤價必須大於 0")
-
         predicted_return = to_decimal(
             record.predicted_return_20
         )
@@ -207,38 +238,61 @@ def evaluate_one(record):
         print(f"[錯誤] {symbol}：預測資料無效：{exc}")
         return "error"
 
-    # 找出基準日之後的有效收盤價。
-    # 資料庫應以每個交易日一筆紀錄為前提。
-    prices = (
-        StockPrice.objects
-        .filter(
-            stock=stock,
-            date__gt=record.data_date,
-            close_price__gt=0,
-        )
-        .order_by("date")
-        .values("date", "close_price")[:horizon]
+    adj_rows = load_adjusted_map().get(
+        normalize_symbol(stock.symbol),
+        [],
     )
 
-    future_prices = list(prices)
+    data_day = record.data_date
+    if isinstance(data_day, datetime):
+        data_day = data_day.date()
 
-    if len(future_prices) < horizon:
+    base_entry = next(
+        (item for item in adj_rows if item[0] == data_day),
+        None,
+    )
+
+    if base_entry is None:
+        print(f"[等待] {symbol}：還原價檔缺少基準日 {data_day}")
+        return "waiting"
+
+    base_price = base_entry[1]
+
+    if base_price <= ZERO:
+        print(f"[錯誤] {symbol}：還原基準收盤價必須大於 0")
+        return "error"
+
+    future_rows = [
+        item for item in adj_rows if item[0] > data_day
+    ][:horizon]
+
+    if len(future_rows) < horizon:
         print(
             f"[等待] {symbol}："
-            f"{len(future_prices)}/{horizon} 個有效交易日"
+            f"{len(future_rows)}/{horizon} 個有效交易日"
         )
         return "waiting"
 
-    target = future_prices[horizon - 1]
+    actual_date, adj_actual_close = future_rows[horizon - 1]
 
-    actual_date = target["date"]
+    # 資料庫仍保存原始收盤價，供畫面顯示與人工核對
+    raw_actual_close = (
+        StockPrice.objects
+        .filter(stock=stock, date=actual_date, close_price__gt=0)
+        .values_list("close_price", flat=True)
+        .first()
+    )
+
+    if raw_actual_close is None:
+        print(f"[等待] {symbol}：{actual_date} 缺少原始收盤價")
+        return "waiting"
 
     try:
-        actual_close = to_decimal(target["close_price"])
+        actual_close = to_decimal(raw_actual_close)
 
         actual_return = calculate_actual_return(
             base_price,
-            actual_close,
+            adj_actual_close,
         )
 
     except (InvalidOperation, ValueError) as exc:

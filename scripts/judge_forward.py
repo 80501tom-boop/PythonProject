@@ -12,8 +12,10 @@
     python scripts/judge_forward.py
 """
 
+import csv
 import os
 import sys
+from datetime import date
 from pathlib import Path
 
 import numpy as np
@@ -32,6 +34,20 @@ COST_ONE_SIDE = 0.001
 MIN_SPAN_DAYS = 365
 BOOTSTRAP_N = 2000
 RANDOM_SEED = 42
+
+
+def load_bench_adjusted():
+    """讀取基準 ETF 的還原收盤價，回傳 {date: adj_close}。配息會讓原始價失真，需用還原價。"""
+    path = BASE_DIR / "adjusted_prices.csv"
+    if not path.exists():
+        raise FileNotFoundError(f"找不到 {path}，請先執行 scripts/adjust_prices.py")
+
+    prices = {}
+    with path.open(newline="", encoding="utf-8-sig") as f:
+        for row in csv.DictReader(f):
+            if row["symbol"].strip() == BENCH_SYMBOL:
+                prices[date.fromisoformat(row["date"].strip()[:10])] = float(row["adj_close"])
+    return prices
 
 
 def select_nonoverlap_dates(dates, step=REBALANCE_STEP):
@@ -91,7 +107,7 @@ def main():
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "PythonProject.settings")
     django.setup()
 
-    from myapp.models import PredictionHistory, StockPrice, Stock
+    from myapp.models import PredictionHistory
 
     records = list(
         PredictionHistory.objects.filter(
@@ -113,27 +129,22 @@ def main():
     all_dates = sorted(by_date)
     sample_dates = select_nonoverlap_dates(all_dates)
 
-    bench = Stock.objects.filter(symbol=BENCH_SYMBOL).first()
-    if bench is None:
-        print(f"找不到基準 {BENCH_SYMBOL} 的 Stock 資料。")
+    bench_adj = load_bench_adjusted()
+    if not bench_adj:
+        print(f"還原價檔中找不到基準 {BENCH_SYMBOL}。")
         return
-
-    basket_returns, bench_returns, baskets = [], [], []
     for d in sample_dates:
         rows = by_date[d]
         basket_returns.append(
             float(np.mean([float(r["actual_return_20"]) for r in rows])) / 100
         )
-        base = StockPrice.objects.filter(stock=bench, date=d).values_list("close_price", flat=True).first()
-        fwd = list(
-            StockPrice.objects.filter(stock=bench, date__gt=d, close_price__gt=0)
-            .order_by("date").values_list("close_price", flat=True)[:HORIZON]
-        )
-        if base is None or len(fwd) < HORIZON:
-            print(f"[略過] {d}：0050 價格不足")
+        base = bench_adj.get(d)
+        future_dates = sorted(k for k in bench_adj if k > d)[:HORIZON]
+        if base is None or len(future_dates) < HORIZON:
+            print(f"[略過] {d}：0050 還原價不足")
             basket_returns.pop()
             continue
-        bench_returns.append(float(fwd[-1]) / float(base) - 1)
+        bench_returns.append(bench_adj[future_dates[-1]] / base - 1)
         baskets.append({r["symbol"] for r in rows})
 
     net = build_samples(basket_returns, bench_returns, baskets)

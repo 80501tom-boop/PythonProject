@@ -466,16 +466,17 @@ def build_market_dataset():
                 continue
 
             # -----------------------------
-            # 流動性門檻：
-            # 最新一天的 20 日平均成交量不足則略過
+            # 流動性門檻（逐日判斷，與回測一致）：
+            # 每一天的 20 日平均成交量不足則該列不納入，避免用未來資料決定過去
             # -----------------------------
-            latest_volume_ma20 = pd.to_numeric(
-                df["volume_ma20"].iloc[-1],
-                errors="coerce"
+            liquid_mask = (
+                pd.to_numeric(df["volume_ma20"], errors="coerce")
+                >= MIN_AVG_VOLUME_20
             )
+            low_liquidity_count += int((~liquid_mask).sum())
+            df = df[liquid_mask]
 
-            if pd.isna(latest_volume_ma20) or latest_volume_ma20 < MIN_AVG_VOLUME_20:
-                low_liquidity_count += 1
+            if df.empty:
                 continue
 
             # -----------------------------
