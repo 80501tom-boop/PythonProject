@@ -25,7 +25,7 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
-MODEL_VERSION = "V5.8-FORWARD"
+MODEL_VERSION = "V5.9-FORWARD"
 BENCH_SYMBOL = "0050"
 TOP_N = 10
 HORIZON = 20

@@ -1829,7 +1829,7 @@ def prediction_performance(request):
 def run_forward_prediction(request):
     """執行前瞻預測，避免重複訓練。"""
 
-    MODEL_VERSION = "V5.8-FORWARD"
+    MODEL_VERSION = "V5.9-FORWARD"
     LOCK_KEY = "stock_ai_forward_prediction_running"
 
     # 僅允許由頁面 POST 表單啟動
@@ -2054,7 +2054,7 @@ def run_adjust_prices(request):
 def run_forward_evaluation(request):
     """執行前瞻預測績效評估。"""
 
-    MODEL_VERSION = "V5.8-FORWARD"
+    MODEL_VERSION = "V5.9-FORWARD"
     LOCK_KEY = "stock_ai_forward_evaluation_running"
 
     # 僅允許由頁面 POST 表單啟動
