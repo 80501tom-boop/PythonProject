@@ -23,6 +23,7 @@ from .import_status import (
     import_stage,
     import_status,
     months_since_history_start,
+    running_imports,
 )
 from .models import Stock, StockPrice, PredictionHistory
 
@@ -128,6 +129,17 @@ def add_stock(request):
 
     # 統一代號格式（避免 6488.0 / 空白）
     symbol = str(symbol).split(".")[0].zfill(4)
+
+    # 同時只允許一檔背景抓取，避免 TWSE／TPEx API 限流（HTTP 428）
+    running = running_imports(settings.BASE_DIR)
+
+    if running:
+        messages.error(
+            request,
+            f"目前 {'、'.join(running)} 仍在背景處理中，"
+            "請等完成後再新增下一檔（避免 API 限流）。"
+        )
+        return redirect("index")
 
     # =====================================
     # 1) 先查 TWSE（上市）

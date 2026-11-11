@@ -39,6 +39,12 @@
 
 <main class="container">
 
+    {% if messages %}
+        {% for message in messages %}
+            <div class="message{% if message.tags == 'error' %} error{% endif %}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
 
     <!-- 標題 -->
 

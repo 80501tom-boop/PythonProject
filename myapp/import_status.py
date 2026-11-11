@@ -43,6 +43,21 @@ def import_stage(symbol, base_dir):
     return STAGE_LABELS.get(steps[-1], steps[-1])
 
 
+def running_imports(base_dir, now=None):
+    """回傳目前仍在背景抓取中的股票代號（狀態為抓取中）。"""
+    log_dir = os.path.join(str(base_dir), "data", "import_logs")
+
+    if not os.path.isdir(log_dir):
+        return []
+
+    return sorted(
+        name[:-4]
+        for name in os.listdir(log_dir)
+        if name.endswith(".log")
+        and import_status(name[:-4], base_dir, now) == "抓取中"
+    )
+
+
 def import_status(symbol, base_dir, now=None):
     """回傳 None / 抓取中 / 完成 / 失敗 / 可能已中止。"""
     log_path = os.path.join(str(base_dir), "data", "import_logs", f"{symbol}.log")

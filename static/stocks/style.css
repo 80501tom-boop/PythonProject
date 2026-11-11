@@ -1,5 +1,22 @@
 
 /* =========================
+   頁面訊息（與前瞻預測頁 .message 相同）
+========================= */
+
+.message {
+    padding: 12px 16px;
+    margin-bottom: 14px;
+    background: #e8f5ee;
+    border-radius: 8px;
+    color: #176943;
+}
+
+.message.error {
+    background: #fff0f0;
+    color: #b42318;
+}
+
+/* =========================
    基本設定
 ========================= */
 

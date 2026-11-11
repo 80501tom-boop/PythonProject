@@ -17,6 +17,7 @@ from myapp.import_status import (
     import_stage,
     import_status,
     months_since_history_start,
+    running_imports,
 )
 from myapp.models import Stock
 
@@ -66,6 +67,13 @@ class ImportStatusTests(SimpleTestCase):
     def test_recent_log_without_marker_returns_in_progress(self):
         self._write_log("開始背景抓取 2330\n取得 202101 行情...\n", age_seconds=10)
         self.assertEqual(import_status("2330", self.base_dir), "抓取中")
+
+    def test_running_imports_lists_only_in_progress(self):
+        self._write_log("取得 202101 行情...\n", age_seconds=10)
+        done_path = os.path.join(self.log_dir, "2317.log")
+        with open(done_path, "w", encoding="utf-8") as f:
+            f.write("新增股票流程完成\n")
+        self.assertEqual(running_imports(self.base_dir), ["2330"])
 
     def test_stale_log_without_marker_returns_stopped(self):
         self._write_log(
