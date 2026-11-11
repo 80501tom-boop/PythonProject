@@ -680,6 +680,7 @@ def stock_detail(request, symbol):
 
         "stock": stock,
 
+        "prices": prices,
 
         "latest_price": latest_price,
 
