@@ -541,6 +541,24 @@
     background: #f3f4f6;
 }
 
+.page-jump {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.page-jump input {
+    width: 80px;
+    padding: 7px 10px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.page-jump button {
+    cursor: pointer;
+}
+
 .page-info {
     padding: 8px 14px;
 

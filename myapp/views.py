@@ -581,6 +581,16 @@ def stock_detail(request, symbol):
         page_number
     )
 
+    # 頁碼超出範圍時 get_page 會靜默跳到最後一頁，這裡明確提示
+    if page_number and str(page_number).isdigit():
+
+        if int(page_number) != prices.number:
+
+            messages.warning(
+                request,
+                f"頁碼 {page_number} 超出範圍，已顯示第 {prices.number} 頁（共 {paginator.num_pages} 頁）"
+            )
+
     # ==================================================
     # 技術指標
     # ==================================================

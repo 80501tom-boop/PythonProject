@@ -627,6 +627,20 @@
             {% endif %}
 
 
+            <form method="get" class="page-jump">
+
+                <input type="number"
+                       name="page"
+                       min="1"
+                       max="{{ prices.paginator.num_pages }}"
+                       placeholder="頁碼"
+                       required>
+
+                <button type="submit" class="page-button">跳轉</button>
+
+            </form>
+
+
         </div>
 
 
