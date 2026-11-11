@@ -2069,11 +2069,9 @@ def run_forward_evaluation(request):
         return redirect("prediction_history")
 
     try:
-        records = PredictionHistory.objects.filter(
-            model_version=MODEL_VERSION
-        )
+        records = PredictionHistory.objects.all()
 
-        # 執行前統計
+        # 執行前統計（與評估程式及績效頁面一致，統計所有版本）
         pending_before = records.filter(
             evaluated_at__isnull=True
         ).count()
@@ -2130,9 +2128,7 @@ def run_forward_evaluation(request):
             return redirect("prediction_history")
 
         # 執行後重新統計資料庫紀錄
-        records = PredictionHistory.objects.filter(
-            model_version=MODEL_VERSION
-        )
+        records = PredictionHistory.objects.all()
 
         evaluated_after = records.filter(
             evaluated_at__isnull=False
