@@ -75,6 +75,13 @@ class ImportStatusTests(SimpleTestCase):
             f.write("新增股票流程完成\n")
         self.assertEqual(running_imports(self.base_dir), ["2330"])
 
+    def test_running_imports_ignores_adjust_and_forward_stages(self):
+        self._write_log(
+            ">>> 執行 歷史股價抓取\n>>> 執行 adjust_prices.py\n",
+            age_seconds=10,
+        )
+        self.assertEqual(running_imports(self.base_dir), [])
+
     def test_stale_log_without_marker_returns_stopped(self):
         self._write_log(
             "取得 202101 行情...\n",

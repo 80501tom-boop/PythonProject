@@ -130,14 +130,14 @@ def add_stock(request):
     # 統一代號格式（避免 6488.0 / 空白）
     symbol = str(symbol).split(".")[0].zfill(4)
 
-    # 同時只允許一檔背景抓取，避免 TWSE／TPEx API 限流（HTTP 428）
+    # 歷史股價抓取中才限制；還原股價與前瞻預測階段不擋新增
     running = running_imports(settings.BASE_DIR)
 
     if running:
-        messages.error(
+        messages.info(
             request,
-            f"目前 {'、'.join(running)} 仍在背景處理中，"
-            "請等完成後再新增下一檔（避免 API 限流）。"
+            f"目前 {'、'.join(running)} 正在抓取歷史股價，"
+            "請等抓取完成後再新增下一檔（避免 API 限流）。"
         )
         return redirect("index")
 

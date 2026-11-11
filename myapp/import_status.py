@@ -44,18 +44,24 @@ def import_stage(symbol, base_dir):
 
 
 def running_imports(base_dir, now=None):
-    """回傳目前仍在背景抓取中的股票代號（狀態為抓取中）。"""
+    """回傳目前仍在匯入歷史股價的股票代號（尚未進入還原股價或前瞻預測階段）。"""
     log_dir = os.path.join(str(base_dir), "data", "import_logs")
 
     if not os.path.isdir(log_dir):
         return []
 
-    return sorted(
-        name[:-4]
-        for name in os.listdir(log_dir)
-        if name.endswith(".log")
-        and import_status(name[:-4], base_dir, now) == "抓取中"
-    )
+    running = []
+    for name in os.listdir(log_dir):
+        if not name.endswith(".log"):
+            continue
+        symbol = name[:-4]
+        if import_status(symbol, base_dir, now) != "抓取中":
+            continue
+        stage = import_stage(symbol, base_dir)
+        if stage in (None, STAGE_LABELS["歷史股價抓取"]):
+            running.append(symbol)
+
+    return sorted(running)
 
 
 def import_status(symbol, base_dir, now=None):

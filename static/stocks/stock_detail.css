@@ -583,19 +583,7 @@
     color: #b42318;
 }
 
-/* 頁面頂部操作訊息（Django messages），與前瞻預測／評估訊息的 .message 完全相同 */
-.message {
-    padding: 12px 16px;
-    margin-bottom: 14px;
-    background: #e8f5ee;
-    border-radius: 8px;
-    color: #176943;
-}
-
-.message.error {
-    background: #fff0f0;
-    color: #b42318;
-}
+/* 頁面頂部操作訊息（Django messages），共用 style.css 的 .message */
 
 .page-info {
     padding: 8px 14px;
