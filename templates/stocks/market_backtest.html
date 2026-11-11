@@ -502,6 +502,38 @@
             background: #f1f5f9;
         }
 
+        .pagination-jump-form {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin: 0;
+        }
+
+        .pagination-jump-form .page-input {
+            width: 60px;
+            height: 36px;
+            padding: 0 6px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .pagination-jump-form .page-btn-submit {
+            height: 36px;
+            padding: 0 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: #ffffff;
+            color: #334155;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .pagination-jump-form .page-btn-submit:hover {
+            background: #f1f5f9;
+        }
+
 
         .page-btn:disabled {
 
@@ -1168,23 +1200,13 @@
                 {% endif %}
 
 
-                <span class="page-info">
-
-                    第
-
-                    <span class="current-page">
-                        {{ page_obj.number }}
-                    </span>
-
-                    /
-
-                    <span class="total-pages">
-                        {{ page_obj.paginator.num_pages }}
-                    </span>
-
-                    頁
-
-                </span>
+                <form method="get" class="pagination-jump-form">
+                    <input type="hidden" name="symbol" value="{{ selected_symbol }}">
+                    <span class="page-text">第</span>
+                    <input type="number" name="page" min="1" max="{{ page_obj.paginator.num_pages }}" value="{{ page_obj.number }}" class="page-input">
+                    <span class="page-text">頁 / 共 {{ page_obj.paginator.num_pages }} 頁</span>
+                    <button type="submit" class="page-btn-submit">跳轉</button>
+                </form>
 
 
                 {% if page_obj.has_next %}

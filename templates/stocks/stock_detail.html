@@ -593,15 +593,22 @@
 
 
 
-            <span class="page-info">
+            <form method="get" class="page-jump">
 
-                第
-                {{ prices.number }}
-                /
-                {{ prices.paginator.num_pages }}
-                頁
+                <span>第</span>
 
-            </span>
+                <input type="number"
+                       name="page"
+                       min="1"
+                       max="{{ prices.paginator.num_pages }}"
+                       value="{{ prices.number }}"
+                       required>
+
+                <span>頁 / 共 {{ prices.paginator.num_pages }} 頁</span>
+
+                <button type="submit" class="page-button">跳轉</button>
+
+            </form>
 
 
 
@@ -625,20 +632,6 @@
 
 
             {% endif %}
-
-
-            <form method="get" class="page-jump">
-
-                <input type="number"
-                       name="page"
-                       min="1"
-                       max="{{ prices.paginator.num_pages }}"
-                       placeholder="頁碼"
-                       required>
-
-                <button type="submit" class="page-button">跳轉</button>
-
-            </form>
 
 
         </div>
