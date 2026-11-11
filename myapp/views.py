@@ -2166,10 +2166,10 @@ def run_forward_evaluation(request):
         else:
             messages.info(
                 request,
-                f"評估程式已執行完畢，本次新增評估 0 筆；"
-                f"尚未完成評估 {pending_after} 筆。"
-                "未完成的紀錄可能尚未滿 20 個交易日，"
-                "或需檢查評估程式的執行條件。"
+                f"評估程式已執行完畢，本次沒有新完成的評估；"
+                f"目前已完成 {evaluated_after} 筆，"
+                f"待評估 {pending_after} 筆"
+                "（多數尚未滿 20 個交易日）。"
             )
 
     except subprocess.TimeoutExpired:
