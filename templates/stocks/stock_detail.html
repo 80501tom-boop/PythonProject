@@ -60,7 +60,7 @@
 
 
 {% for message in messages %}
-<div class="import-status{% if message.tags == 'error' %} error{% endif %}">{{ message }}</div>
+<div class="message{% if message.tags == 'error' %} error{% endif %}">{{ message }}</div>
 {% endfor %}
 
 
