@@ -16,6 +16,33 @@ def months_since_history_start(now=None):
     return (now.year - HISTORY_START_YEAR) * 12 + now.month
 
 
+STAGE_LABELS = {
+    "歷史股價抓取": "歷史股價抓取中",
+    "adjust_prices.py": "還原股價計算中",
+    "forward_prediction.py": "前瞻預測計算中",
+}
+
+
+def import_stage(symbol, base_dir):
+    """回傳 pipeline 目前執行的步驟文字；尚未開始或無紀錄時回傳 None。"""
+    log_path = os.path.join(str(base_dir), "data", "import_logs", f"{symbol}.log")
+
+    if not os.path.isfile(log_path):
+        return None
+
+    with open(log_path, encoding="utf-8", errors="replace") as f:
+        steps = [
+            line.split(">>> 執行 ", 1)[1].strip()
+            for line in f
+            if ">>> 執行 " in line
+        ]
+
+    if not steps:
+        return None
+
+    return STAGE_LABELS.get(steps[-1], steps[-1])
+
+
 def import_status(symbol, base_dir, now=None):
     """回傳 None / 抓取中 / 完成 / 失敗 / 可能已中止。"""
     log_path = os.path.join(str(base_dir), "data", "import_logs", f"{symbol}.log")

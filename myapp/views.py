@@ -20,6 +20,7 @@ from config import TOP_N
 
 from .import_status import (
     HISTORY_START_YEAR,
+    import_stage,
     import_status,
     months_since_history_start,
 )
@@ -687,6 +688,8 @@ def stock_detail(request, symbol):
     context = {
 
         "import_status": import_status(symbol, settings.BASE_DIR),
+
+        "import_stage": import_stage(symbol, settings.BASE_DIR),
 
         "stock": stock,
 

@@ -14,6 +14,7 @@ from django.test import SimpleTestCase, TestCase
 from myapp.import_status import (
     HISTORY_START_YEAR,
     IMPORT_STALE_SECONDS,
+    import_stage,
     import_status,
     months_since_history_start,
 )
@@ -41,6 +42,18 @@ class ImportStatusTests(SimpleTestCase):
 
     def test_no_log_returns_none(self):
         self.assertIsNone(import_status("2330", self.base_dir))
+
+    def test_stage_reports_latest_pipeline_step(self):
+        self._write_log(
+            "\n>>> 執行 歷史股價抓取\n匯入完成：2330\n"
+            "\n>>> 執行 adjust_prices.py\n"
+        )
+        self.assertEqual(
+            import_stage("2330", self.base_dir), "還原股價計算中"
+        )
+
+    def test_stage_none_without_log(self):
+        self.assertIsNone(import_stage("9999", self.base_dir))
 
     def test_pipeline_complete_marker_returns_done(self):
         self._write_log("匯入完成：2330\n新增股票流程完成\n")
