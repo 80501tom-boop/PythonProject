@@ -327,6 +327,11 @@ def request_json(url, params):
 # TWSE 上市股票
 # =========================================================
 
+def is_twse_no_data_status(status):
+    """TWSE 該月無資料（例如股票尚未上市）時的 stat 文字。"""
+    return status == "查詢資料不存在" or "沒有符合條件的資料" in status
+
+
 def get_twse_month_data(stock_code, yyyymm):
     """
     取得 TWSE 單一上市股票的月資料。
@@ -350,7 +355,7 @@ def get_twse_month_data(stock_code, yyyymm):
 
     status = str(result.get("stat", "")).strip()
 
-    if status not in ("OK", "查詢資料不存在"):
+    if not is_twse_no_data_status(status) and status != "OK":
         raise MarketDataError(
             f"TWSE 回傳異常：{status or '缺少 stat 欄位'}"
         )
@@ -358,7 +363,7 @@ def get_twse_month_data(stock_code, yyyymm):
     fields = result.get("fields", [])
     rows = result.get("data", [])
 
-    if status == "查詢資料不存在" or not rows:
+    if is_twse_no_data_status(status) or not rows:
         return []
 
     if not fields:
