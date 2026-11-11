@@ -59,8 +59,7 @@
 <div class="import-status">{{ message }}</div>
 {% endfor %}
 
-{% if import_status %}
-<div class="import-status">
+{% if import_status and import_status != "完成" %}
     歷史資料狀態：{{ import_status }}
     {% if import_status == "抓取中" %}（背景抓取中，請稍後重新整理）{% endif %}
     {% if import_status == "失敗" %}（請查看 data/import_logs 內的記錄）{% endif %}
