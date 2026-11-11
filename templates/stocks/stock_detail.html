@@ -10,6 +10,10 @@
     <meta name="viewport"
           content="width=device-width, initial-scale=1.0">
 
+    {% if import_status == "抓取中" %}
+    <meta http-equiv="refresh" content="30">
+    {% endif %}
+
     <title>
         {% if stock %}
             {{ stock.symbol }} {{ stock.name }} - STOCK AI
@@ -59,12 +63,6 @@
 <div class="import-status">{{ message }}</div>
 {% endfor %}
 
-{% if import_status and import_status != "完成" %}
-    歷史資料狀態：{{ import_status }}
-    {% if import_status == "抓取中" %}（背景抓取中，請稍後重新整理）{% endif %}
-    {% if import_status == "失敗" %}（請查看 data/import_logs 內的記錄）{% endif %}
-</div>
-{% endif %}
 
 {% if stock %}
 
@@ -457,6 +455,16 @@
 
 
     </div>
+
+
+    {% if import_status and import_status != "完成" %}
+    <div class="history-status history-status-{% if import_status == '抓取中' %}progress{% elif import_status == '失敗' %}error{% else %}warning{% endif %}">
+        <strong>歷史資料：{{ import_status }}</strong>
+        {% if import_status == "抓取中" %}背景抓取中，本頁每 30 秒自動更新，完成後會加入模型。{% endif %}
+        {% if import_status == "失敗" %}請查看 data/import_logs 內的記錄。{% endif %}
+        {% if import_status == "可能已中止" %}抓取程序可能已中斷，請確認後重新新增。{% endif %}
+    </div>
+    {% endif %}
 
 
 

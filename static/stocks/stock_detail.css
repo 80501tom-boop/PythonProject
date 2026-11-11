@@ -559,6 +559,34 @@
     cursor: pointer;
 }
 
+/* 歷史資料狀態提示（放在歷史價格區塊內） */
+.history-status {
+    margin: 0 0 16px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border-left: 4px solid;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.history-status-progress {
+    background: #eff6ff;
+    border-color: #3b82f6;
+    color: #1e40af;
+}
+
+.history-status-warning {
+    background: #fffbeb;
+    border-color: #f59e0b;
+    color: #92400e;
+}
+
+.history-status-error {
+    background: #fef2f2;
+    border-color: #ef4444;
+    color: #991b1b;
+}
+
 .page-info {
     padding: 8px 14px;
 
