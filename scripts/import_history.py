@@ -85,6 +85,12 @@ BACKOFF_MAX_SECONDS = 30.0
 # 月份資料筆數達此門檻即視為完整，回補時略過（交易月約 18～23 日）
 MIN_COMPLETE_MONTH_ROWS = 15
 
+# 轉板股票：轉板日之前使用舊市場 API，之後使用新市場 API
+# 格式：symbol -> (轉板日, 轉板前市場, 轉板後市場)
+MARKET_SWITCHES = {
+    "6446": (date(2024, 1, 25), "TPEx", "TWSE"),
+}
+
 
 # =========================================================
 # 自訂錯誤
@@ -593,6 +599,25 @@ def get_market(stock):
     return None
 
 
+def get_switched_month_data(stock, yyyymm, switch):
+    """轉板股票依轉板日選擇市場；轉板當月兩邊都抓並合併。"""
+    switch_date, before_market, after_market = switch
+    month = date(int(yyyymm[:4]), int(yyyymm[4:]), 1)
+
+    fetchers = {"TWSE": get_twse_month_data, "TPEx": get_tpex_month_data}
+
+    if month < date(switch_date.year, switch_date.month, 1):
+        return fetchers[before_market](stock.symbol, yyyymm)
+
+    if month > switch_date.replace(day=1):
+        return fetchers[after_market](stock.symbol, yyyymm)
+
+    records = fetchers[before_market](stock.symbol, yyyymm)
+    records = [r for r in records if r["date"] < switch_date]
+    after = fetchers[after_market](stock.symbol, yyyymm)
+    return records + [r for r in after if r["date"] >= switch_date]
+
+
 def get_month_data(stock, yyyymm):
     """
     依股票市場取得月資料。
@@ -601,6 +626,10 @@ def get_month_data(stock, yyyymm):
     只有成功取得資料或確認沒有資料才回傳。
     若兩邊 API 都失敗，拋出錯誤。
     """
+    switch = MARKET_SWITCHES.get(stock.symbol)
+    if switch is not None:
+        return get_switched_month_data(stock, yyyymm, switch)
+
     market = get_market(stock)
 
     if market == "TWSE":
