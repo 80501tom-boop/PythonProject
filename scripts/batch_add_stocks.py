@@ -7,7 +7,7 @@
 1. 代號已存在 Stock 則更新（import_history.py 增量），否則抓取完整歷史（--months）
 2. 狀態寫入 data/import_logs/batch.lock，每檔的輸出寫入 data/import_logs/<代號>.log
 3. 新股抓取失敗則移除紀錄，其餘繼續
-4. 全部抓完後，只執行一次 adjust_prices.py 與 forward_prediction.py
+4. 只抓歷史股價，不執行 adjust_prices.py 與 forward_prediction.py（需手動執行）
 5. 結果寫入 data/import_logs/batch_last.json，首頁顯示
 
 用法：
@@ -59,16 +59,6 @@ DEFAULT_PAUSE_SECONDS = 45
 COOLDOWN_SECONDS = 240
 MAX_CONSECUTIVE_LIMITS = 2
 RATE_LIMIT_MARK = "428 Client Error"
-
-FINAL_STEPS = [
-    ("adjust_prices.py", "scripts/adjust_prices.py"),
-    ("forward_prediction.py", "myapp/ml/forward_prediction.py"),
-]
-
-FINAL_STAGE_LABELS = {
-    "adjust_prices.py": "還原股價計算中",
-    "forward_prediction.py": "前瞻預測計算中",
-}
 
 
 def parse_args(argv):
@@ -182,25 +172,6 @@ def run_history_step(symbol, months):
     return result.returncode == 0, limited
 
 
-def run_final_steps(symbols, env, results):
-    """全部股票共用一次還原價與前瞻預測；同時更新佇列狀態供首頁與股票頁顯示目前步驟。"""
-    for label, rel_path in FINAL_STEPS:
-        print(f"\n>>> 執行 {label}", flush=True)
-        for symbol in symbols:
-            results[symbol] = f"處理中（{FINAL_STAGE_LABELS[label]}）"
-        write_queue_results(BASE_DIR, results)
-        for symbol in symbols:
-            append_log(symbol, f">>> 執行 {label}")
-        result = subprocess.run(
-            [sys.executable, os.path.join(BASE_DIR, rel_path)],
-            cwd=BASE_DIR,
-            env=env,
-        )
-        if result.returncode != 0:
-            return label
-    return None
-
-
 def _heartbeat(stop_event):
     """執行期間定期更新鎖檔時間，讓網頁能判斷執行器仍在運作。"""
     while not stop_event.wait(QUEUE_HEARTBEAT_SECONDS):
@@ -280,15 +251,9 @@ def main():
                 time.sleep(pause)
 
         if ready:
-            env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1"}
-            failed_step = run_final_steps(ready, env, results)
             for symbol in ready:
-                if failed_step:
-                    results[symbol] = f"失敗（{failed_step}）"
-                    append_log(symbol, f"新增股票流程失敗：{failed_step} 執行失敗")
-                else:
-                    results[symbol] = "完成"
-                    append_log(symbol, "新增股票流程完成")
+                results[symbol] = "完成"
+                append_log(symbol, "新增股票流程完成（歷史股價已寫入，還原價與前瞻預測需手動執行）")
     finally:
         heartbeat_stop.set()
         for symbol, status in list(results.items()):

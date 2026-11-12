@@ -204,7 +204,7 @@ def submit_stock_additions(request, raw_items):
     if len(symbols) == 1:
         messages.info(
             request,
-            f"已排入 {symbols[0]} 背景抓取歷史股價，完成後會自動加入模型，進度請看首頁狀態。",
+            f"已排入 {symbols[0]} 背景抓取歷史股價，完成後請手動執行還原價與前瞻預測，進度請看首頁狀態。",
         )
         return redirect("stock_detail", symbol=symbols[0])
 
