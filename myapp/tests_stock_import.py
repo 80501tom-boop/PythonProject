@@ -20,6 +20,7 @@ from myapp.import_status import (
     running_imports,
 )
 from myapp.stock_queue import (
+    QUEUE_STALE_SECONDS,
     last_results,
     lock_path,
     normalize_symbols,
@@ -175,7 +176,7 @@ class StockQueueTests(SimpleTestCase):
     def test_stale_lock_is_ignored(self):
         write_queue_results(self.base, {"2330": "處理中"})
         path = lock_path(self.base)
-        old = os.path.getmtime(path) - IMPORT_STALE_SECONDS - 10
+        old = os.path.getmtime(path) - QUEUE_STALE_SECONDS - 10
         os.utime(path, (old, old))
         self.assertIsNone(queue_results(self.base))
 

@@ -18,6 +18,7 @@
 import os
 import subprocess
 import sys
+import threading
 import time
 
 import django
@@ -41,10 +42,12 @@ from myapp.import_status import months_since_history_start  # noqa: E402
 from myapp.models import Stock, StockPrice  # noqa: E402
 from myapp.stock_queue import (  # noqa: E402
     MAX_BATCH_SIZE,
+    QUEUE_HEARTBEAT_SECONDS,
     lock_path,
     lookup_stock,
     normalize_symbols,
     save_stock,
+    touch_queue,
     write_last_results,
     write_queue_results,
 )
@@ -180,6 +183,12 @@ def run_final_steps(symbols, env, results):
     return None
 
 
+def _heartbeat(stop_event):
+    """執行期間定期更新鎖檔時間，讓網頁能判斷執行器仍在運作。"""
+    while not stop_event.wait(QUEUE_HEARTBEAT_SECONDS):
+        touch_queue(BASE_DIR)
+
+
 def main():
     symbols, months, pause = parse_args(sys.argv[1:])
     os.makedirs(LOG_DIR, exist_ok=True)
@@ -190,6 +199,10 @@ def main():
     stopped = False
 
     write_queue_results(BASE_DIR, results)
+    heartbeat_stop = threading.Event()
+    threading.Thread(
+        target=_heartbeat, args=(heartbeat_stop,), daemon=True
+    ).start()
     try:
         for index, symbol in enumerate(symbols):
             if stopped:
@@ -253,6 +266,7 @@ def main():
                     results[symbol] = "完成"
                     append_log(symbol, "新增股票流程完成")
     finally:
+        heartbeat_stop.set()
         for symbol, status in list(results.items()):
             if status in ("等待中", "處理中"):
                 results[symbol] = "未完成"

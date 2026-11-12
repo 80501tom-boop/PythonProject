@@ -15,11 +15,14 @@ import time
 
 import requests
 
-from .import_status import IMPORT_STALE_SECONDS
 from .models import Stock
 
 
 MAX_BATCH_SIZE = 20
+
+# 執行器每 QUEUE_HEARTBEAT_SECONDS 更新一次鎖檔 mtime；超過 QUEUE_STALE_SECONDS 未更新視為已中斷。
+QUEUE_HEARTBEAT_SECONDS = 30
+QUEUE_STALE_SECONDS = 180
 
 TWSE_LIST_URL = "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL"
 TPEX_LIST_URL = "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes"
@@ -109,15 +112,21 @@ def write_queue_results(base_dir, results):
         json.dump(results, f, ensure_ascii=False)
 
 
+def touch_queue(base_dir):
+    path = lock_path(base_dir)
+    if os.path.isfile(path):
+        os.utime(path, None)
+
+
 def queue_results(base_dir, now=None):
-    """回傳執行中佇列的 {代號: 狀態}；無執行或鎖檔過期（程序已中斷）回傳 None。"""
+    """回傳執行中佇列的 {代號: 狀態}；無執行或心跳逾時（程序已中斷）回傳 None。"""
     path = lock_path(base_dir)
 
     if not os.path.isfile(path):
         return None
 
     now = now or time.time()
-    if now - os.path.getmtime(path) >= IMPORT_STALE_SECONDS:
+    if now - os.path.getmtime(path) >= QUEUE_STALE_SECONDS:
         return None
 
     try:
