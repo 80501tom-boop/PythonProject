@@ -11,7 +11,7 @@
 4. 全部抓完後，只執行一次 adjust_prices.py 與 forward_prediction.py
 
 用法：
-    python scripts/batch_add_stocks.py 3443 2887 8046 --pause 120
+    python scripts/batch_add_stocks.py 3443 2887 8046 --pause 45
     python scripts/batch_add_stocks.py 3443,2887 --months 71
 """
 
@@ -39,15 +39,20 @@ os.environ.setdefault(
 django.setup()
 
 from myapp.import_status import months_since_history_start  # noqa: E402
-from myapp.models import Stock  # noqa: E402
+from myapp.models import Stock, StockPrice  # noqa: E402
 
 
 LOG_DIR = os.path.join(BASE_DIR, "data", "import_logs")
+BATCH_LOCK = os.path.join(LOG_DIR, "batch.lock")
 TWSE_LIST_URL = (
     "https://openapi.twse.com.tw/"
     "v1/exchangeReport/STOCK_DAY_ALL"
 )
-DEFAULT_PAUSE_SECONDS = 120
+DEFAULT_PAUSE_SECONDS = 45
+COOLDOWN_SECONDS = 240
+MAX_CONSECUTIVE_LIMITS = 2
+MAX_BATCH_SIZE = 20
+RATE_LIMIT_MARK = "428 Client Error"
 
 FINAL_STEPS = [
     ("adjust_prices.py", "scripts/adjust_prices.py"),
@@ -78,8 +83,13 @@ def parse_args(argv):
         )
         i += 1
 
+    symbols = list(dict.fromkeys(symbols))
+
     if not symbols:
         sys.exit("用法：python scripts/batch_add_stocks.py 代號 [代號…] [--pause 秒] [--months 月數]")
+
+    if len(symbols) > MAX_BATCH_SIZE:
+        sys.exit(f"一次最多 {MAX_BATCH_SIZE} 檔，目前 {len(symbols)} 檔")
 
     return symbols, months, pause
 
@@ -114,7 +124,7 @@ def append_log(symbol, text):
 
 
 def import_one(symbol, months):
-    """依序抓單檔歷史股價，輸出寫入該股的 log 檔。"""
+    """依序抓單檔歷史股價，輸出寫入該股的 log 檔。回傳 (成功與否, 是否遇到 428)。"""
     log_path = os.path.join(LOG_DIR, f"{symbol}.log")
     env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1"}
 
@@ -130,7 +140,10 @@ def import_one(symbol, months):
             env=env,
         )
 
-    return result.returncode == 0
+    with open(log_path, encoding="utf-8", errors="replace") as f:
+        limited = RATE_LIMIT_MARK in f.read()
+
+    return result.returncode == 0, limited
 
 
 def run_final_steps(symbols, env):
@@ -149,6 +162,11 @@ def run_final_steps(symbols, env):
     return None
 
 
+def write_lock(symbols):
+    with open(BATCH_LOCK, "w", encoding="utf-8") as f:
+        f.write(",".join(symbols))
+
+
 def main():
     symbols, months, pause = parse_args(sys.argv[1:])
     os.makedirs(LOG_DIR, exist_ok=True)
@@ -156,32 +174,59 @@ def main():
 
     succeeded = []
     failed = []
+    consecutive_limits = 0
 
-    for index, symbol in enumerate(symbols):
-        print(f"\n{'=' * 60}\n[{index + 1}/{len(symbols)}] 開始 {symbol}\n{'=' * 60}", flush=True)
+    write_lock(symbols)
+    try:
+        for index, symbol in enumerate(symbols):
+            print(f"\n{'=' * 60}\n[{index + 1}/{len(symbols)}] 開始 {symbol}\n{'=' * 60}", flush=True)
+            write_lock(symbols[index:])
 
-        ensure_stock(symbol, names)
+            stock = ensure_stock(symbol, names)
 
-        if import_one(symbol, months):
-            succeeded.append(symbol)
-        else:
-            failed.append(symbol)
-            Stock.objects.filter(symbol=symbol).delete()
-            append_log(symbol, "新增股票流程失敗：歷史股價抓取未成功")
-            print(f"{symbol} 抓取失敗，已移除紀錄，繼續下一檔", flush=True)
+            if StockPrice.objects.filter(stock=stock).exists():
+                print(f"{symbol} 已有歷史資料，略過抓取", flush=True)
+                succeeded.append(symbol)
+                continue
 
-        if index < len(symbols) - 1:
-            print(f"暫停 {pause} 秒後繼續…", flush=True)
-            time.sleep(pause)
+            ok, limited = import_one(symbol, months)
 
-    if succeeded:
-        env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1"}
-        failed_step = run_final_steps(succeeded, env)
-        for symbol in succeeded:
-            if failed_step:
-                append_log(symbol, f"新增股票流程失敗：{failed_step} 執行失敗")
+            if ok:
+                succeeded.append(symbol)
             else:
-                append_log(symbol, "新增股票流程完成")
+                failed.append(symbol)
+                Stock.objects.filter(symbol=symbol).delete()
+                append_log(symbol, "新增股票流程失敗：歷史股價抓取未成功")
+                print(f"{symbol} 抓取失敗，已移除紀錄，繼續下一檔", flush=True)
+
+            consecutive_limits = consecutive_limits + 1 if limited else 0
+
+            if consecutive_limits >= MAX_CONSECUTIVE_LIMITS:
+                print(
+                    f"連續 {consecutive_limits} 檔遇到 428 限流，停止批量；"
+                    "未處理的股票不會建立紀錄，稍後可重新送出",
+                    flush=True,
+                )
+                break
+
+            if limited:
+                print(f"遇到限流，冷卻 {COOLDOWN_SECONDS} 秒", flush=True)
+                time.sleep(COOLDOWN_SECONDS)
+            elif index < len(symbols) - 1:
+                print(f"{pause} 秒後開始下一檔", flush=True)
+                time.sleep(pause)
+
+        if succeeded:
+            env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1"}
+            failed_step = run_final_steps(succeeded, env)
+            for symbol in succeeded:
+                if failed_step:
+                    append_log(symbol, f"新增股票流程失敗：{failed_step} 執行失敗")
+                else:
+                    append_log(symbol, "新增股票流程完成")
+    finally:
+        if os.path.exists(BATCH_LOCK):
+            os.remove(BATCH_LOCK)
 
     print("\n批量新增結束", flush=True)
     print(f"成功：{', '.join(succeeded) or '無'}", flush=True)

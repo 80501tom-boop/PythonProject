@@ -19,7 +19,10 @@ from django.views.decorators.http import require_POST
 from config import TOP_N
 
 from .import_status import (
+    BATCH_MAX_SIZE,
     HISTORY_START_YEAR,
+    batch_lock_path,
+    batch_symbols,
     import_stage,
     import_status,
     months_since_history_start,
@@ -98,6 +101,12 @@ def index(request):
             )
         )
 
+    batch_list = batch_symbols(settings.BASE_DIR)
+    batch_status = [
+        {"symbol": s, "status": import_status(s, settings.BASE_DIR) or "等待中"}
+        for s in batch_list
+    ]
+
     context = {
         "page_obj": page_obj,  # ⚠️ 這裡改傳遞 page_obj 取代原本的 stocks
         "query": query,
@@ -105,6 +114,8 @@ def index(request):
         "latest_data_date": latest_data_date,
         "latest_predictions": latest_predictions,
         "latest_model_version": latest_model_version,
+        "batch_status": batch_status,
+        "batch_max_size": BATCH_MAX_SIZE,
     }
 
     return render(request, "stocks/index.html", context)
@@ -133,7 +144,7 @@ def add_stock(request):
     # 歷史股價抓取中才限制；還原股價與前瞻預測階段不擋新增
     running = running_imports(settings.BASE_DIR)
 
-    if running:
+    if batch_symbols(settings.BASE_DIR) or running:
         messages.info(
             request,
             f"目前 {'、'.join(running)} 正在抓取歷史股價，"
@@ -391,6 +402,69 @@ def add_stock(request):
         "stock_detail",
         symbol=symbol
     )
+
+
+@require_POST
+def batch_add_stocks(request):
+    raw = request.POST.get("symbols", "")
+
+    symbols = []
+    for part in raw.replace("，", ",").replace(",", " ").split():
+        code = part.strip().split(".")[0].zfill(4)
+        if code not in symbols:
+            symbols.append(code)
+
+    if not symbols:
+        messages.error(request, "請輸入至少一個股票代號")
+        return redirect("index")
+
+    if not all(code.isdigit() for code in symbols):
+        messages.error(request, "股票代號只能是數字")
+        return redirect("index")
+
+    if len(symbols) > BATCH_MAX_SIZE:
+        messages.error(
+            request,
+            f"一次最多 {BATCH_MAX_SIZE} 檔，目前輸入 {len(symbols)} 檔，"
+            "請分批送出。"
+        )
+        return redirect("index")
+
+    if batch_symbols(settings.BASE_DIR) or running_imports(settings.BASE_DIR):
+        messages.info(
+            request,
+            "目前已有股票正在背景處理，請等完成後再送出批量新增。"
+        )
+        return redirect("index")
+
+    os.makedirs(os.path.join(str(settings.BASE_DIR), "data", "import_logs"), exist_ok=True)
+    with open(batch_lock_path(settings.BASE_DIR), "w", encoding="utf-8") as f:
+        f.write(",".join(symbols))
+
+    subprocess.Popen(
+        [
+            sys.executable,
+            os.path.join(str(settings.BASE_DIR), "scripts", "batch_add_stocks.py"),
+            *symbols,
+            "--months",
+            str(months_since_history_start()),
+        ],
+        cwd=str(settings.BASE_DIR),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        env={
+            **os.environ,
+            "PYTHONIOENCODING": "utf-8",
+            "PYTHONUNBUFFERED": "1",
+        },
+    )
+
+    messages.info(
+        request,
+        f"已排入批量新增 {len(symbols)} 檔：{'、'.join(symbols)}。"
+        "會依序抓取，前一檔完成才開始下一檔，進度請看首頁。"
+    )
+    return redirect("index")
 
 
 # ============================================================

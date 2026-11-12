@@ -18,6 +18,12 @@ urlpatterns = [
     ),
 
     path(
+        "batch-add-stocks/",
+        views.batch_add_stocks,
+        name="batch_add_stocks"
+    ),
+
+    path(
         "stock/<str:symbol>/",
         views.stock_detail,
         name="stock_detail"

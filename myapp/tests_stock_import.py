@@ -14,6 +14,8 @@ from django.test import SimpleTestCase, TestCase
 from myapp.import_status import (
     HISTORY_START_YEAR,
     IMPORT_STALE_SECONDS,
+    batch_lock_path,
+    batch_symbols,
     import_stage,
     import_status,
     months_since_history_start,
@@ -206,3 +208,29 @@ class AddStockPipelineTests(TestCase):
             calls, ["歷史股價抓取", "adjust_prices.py", "forward_prediction.py"]
         )
         self.assertEqual(code, 0)
+
+
+class BatchSymbolsTests(SimpleTestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        os.makedirs(os.path.join(self.tmp.name, "data", "import_logs"))
+        self.base = self.tmp.name
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_missing_lock_returns_empty(self):
+        self.assertEqual(batch_symbols(self.base), [])
+
+    def test_fresh_lock_returns_symbols(self):
+        with open(batch_lock_path(self.base), "w", encoding="utf-8") as f:
+            f.write("2330,2317")
+        self.assertEqual(batch_symbols(self.base), ["2330", "2317"])
+
+    def test_stale_lock_is_ignored(self):
+        path = batch_lock_path(self.base)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("2330")
+        old = os.path.getmtime(path) - IMPORT_STALE_SECONDS - 10
+        os.utime(path, (old, old))
+        self.assertEqual(batch_symbols(self.base), [])
