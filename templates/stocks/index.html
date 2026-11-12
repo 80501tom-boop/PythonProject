@@ -89,6 +89,7 @@
                 placeholder="新增股票，代號用逗號或空白分隔，例如 2330 或 2330, 2317, 2454（建議一次 10 檔內，最多 {{ max_batch_size }} 檔）"></textarea>
             <button type="submit">新增股票</button>
         </form>
+        <br>
         {% if queue_items %}
             <div class="message">
                 新增股票進度（依序抓取）：
