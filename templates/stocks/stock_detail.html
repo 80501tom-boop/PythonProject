@@ -10,7 +10,7 @@
     <meta name="viewport"
           content="width=device-width, initial-scale=1.0">
 
-    {% if import_status == "抓取中" %}
+    {% if queue_status %}
     <meta http-equiv="refresh" content="30">
     {% endif %}
 
@@ -457,19 +457,10 @@
     </div>
 
 
-    {% if import_status and import_status != "完成" %}
-    <div class="history-status history-status-{% if import_status == '抓取中' %}progress{% elif import_status == '失敗' %}error{% else %}warning{% endif %}">
-        {% if import_status == "抓取中" and import_stage and import_stage != "歷史股價抓取中" %}
-        <strong>歷史資料：處理中</strong>
-        背景處理中（目前：{{ import_stage }}），本頁每 30 秒自動更新，全部完成後會加入模型。
-        {% elif import_status == "抓取中" %}
-        <strong>歷史資料：抓取中</strong>
-        背景抓取中（目前：{{ import_stage|default:"準備中" }}），本頁每 30 秒自動更新，全部完成後會加入模型。
-        {% else %}
-        <strong>歷史資料：{{ import_status }}</strong>
-        {% endif %}
-        {% if import_status == "失敗" %}請查看 data/import_logs 內的記錄。{% endif %}
-        {% if import_status == "可能已中止" %}抓取程序可能已中斷，請確認後重新新增。{% endif %}
+    {% if queue_status %}
+    <div class="history-status history-status-progress">
+        <strong>新增股票進行中：{{ queue_status }}</strong>
+        本頁每 30 秒自動更新，全部完成後此提示會自動消失並加入模型。
     </div>
     {% endif %}
 

@@ -61,6 +61,11 @@ FINAL_STEPS = [
     ("forward_prediction.py", "myapp/ml/forward_prediction.py"),
 ]
 
+FINAL_STAGE_LABELS = {
+    "adjust_prices.py": "還原股價計算中",
+    "forward_prediction.py": "前瞻預測計算中",
+}
+
 
 def parse_args(argv):
     pause = DEFAULT_PAUSE_SECONDS
@@ -156,10 +161,13 @@ def run_history_step(symbol, months):
     return result.returncode == 0, limited
 
 
-def run_final_steps(symbols, env):
-    """全部股票共用一次還原價與前瞻預測；同步寫入各股 log 供狀態框顯示步驟。"""
+def run_final_steps(symbols, env, results):
+    """全部股票共用一次還原價與前瞻預測；同時更新佇列狀態供首頁與股票頁顯示目前步驟。"""
     for label, rel_path in FINAL_STEPS:
         print(f"\n>>> 執行 {label}", flush=True)
+        for symbol in symbols:
+            results[symbol] = f"處理中（{FINAL_STAGE_LABELS[label]}）"
+        write_queue_results(BASE_DIR, results)
         for symbol in symbols:
             append_log(symbol, f">>> 執行 {label}")
         result = subprocess.run(
@@ -236,7 +244,7 @@ def main():
 
         if ready:
             env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1"}
-            failed_step = run_final_steps(ready, env)
+            failed_step = run_final_steps(ready, env, results)
             for symbol in ready:
                 if failed_step:
                     results[symbol] = f"失敗（{failed_step}）"

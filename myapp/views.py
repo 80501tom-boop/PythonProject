@@ -19,8 +19,6 @@ from django.views.decorators.http import require_POST
 from config import TOP_N
 
 from .import_status import (
-    import_stage,
-    import_status,
     months_since_history_start,
     running_imports,
 )
@@ -527,11 +525,14 @@ def stock_detail(request, symbol):
     # 傳給 HTML
     # ==================================================
 
+    active_queue = queue_results(settings.BASE_DIR) or {}
+    queue_status = active_queue.get(symbol)
+    if queue_status in ("完成", "失敗") or (queue_status or "").startswith("失敗"):
+        queue_status = None
+
     context = {
 
-        "import_status": import_status(symbol, settings.BASE_DIR),
-
-        "import_stage": import_stage(symbol, settings.BASE_DIR),
+        "queue_status": queue_status,
 
         "stock": stock,
 
