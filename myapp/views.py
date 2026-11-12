@@ -180,11 +180,20 @@ def submit_stock_additions(request, raw_items):
         )
         return redirect("index")
 
+    existing = [s for s in symbols if Stock.objects.filter(symbol=s).exists()]
+    if existing and len(existing) == len(symbols):
+        messages.info(
+            request,
+            f"{'、'.join(existing)} 已在股票池，未排入新增（更新請用首頁「更新全部」）。",
+        )
+        if len(symbols) == 1:
+            return redirect("stock_detail", symbol=symbols[0])
+        return redirect("index")
+
+    symbols = [s for s in symbols if s not in existing]
+
     unknown = []
     for symbol in symbols:
-        if Stock.objects.filter(symbol=symbol).exists():
-            continue
-
         info = lookup_stock(symbol)
         if info is None:
             unknown.append(symbol)
@@ -201,6 +210,10 @@ def submit_stock_additions(request, raw_items):
 
     start_queue(symbols, settings.BASE_DIR, months_since_history_start())
 
+    skipped_note = (
+        f"已在股票池、略過：{'、'.join(existing)}。" if existing else ""
+    )
+
     if len(symbols) == 1:
         messages.info(
             request,
@@ -211,7 +224,7 @@ def submit_stock_additions(request, raw_items):
     messages.info(
         request,
         f"已排入 {len(symbols)} 檔依序背景抓取：{'、'.join(symbols)}。"
-        "前一檔完成才開始下一檔，進度請看首頁狀態。",
+        "前一檔完成才開始下一檔，進度請看首頁狀態。" + skipped_note,
     )
     return redirect("index")
 
