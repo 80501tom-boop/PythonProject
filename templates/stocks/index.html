@@ -98,7 +98,9 @@
                 {% endfor %}
             </div>
         {% elif last_items %}
-            <div class="message{% if last_failed %} error{% endif %}">
+            <div class="message{% if last_failed %} error{% endif %}"
+                id="last-add-result"
+                {% if not last_failed %}data-auto-dismiss="{{ last_finished }}"{% endif %}>
                 上次新增結果（{{ last_finished }}）：
                 {% for item in last_items %}
                     {{ item.symbol }}（{{ item.status }}）{% if not forloop.last %}、{% endif %}
@@ -129,6 +131,21 @@
                 btn.textContent = "更新中，請稍候...";
                 btn.classList.add("is-loading");
             });
+        })();
+
+        (function () {
+            const box = document.getElementById("last-add-result");
+            if (!box) return;
+            const stamp = box.dataset.autoDismiss;
+            const key = "lastAddResultDismissed";
+            if (localStorage.getItem(key) === stamp) {
+                box.remove();
+                return;
+            }
+            setTimeout(function () {
+                localStorage.setItem(key, stamp);
+                box.remove();
+            }, 8000);
         })();
         </script>
 
