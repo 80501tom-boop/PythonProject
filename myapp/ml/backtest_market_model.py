@@ -18,9 +18,7 @@ V5.1 AI 全市場歷史回測
 注意：
 Top N 選股策略由 V5.9 backtest_topn_strategy.py 負責。
 
-baseline: v10
-current: v12
-比較結果（Top-10: 2.19% vs 2.08%）
+python myapp/ml/backtest_market_model.py 執行回測
 """
 import os
 import sys
