@@ -83,16 +83,11 @@
             新增股票
         ========================= -->
 
-        <form method="POST" action="{% url 'add_stock' %}" class="search-form">
-            {% csrf_token %}
-            <input type="text" name="symbol" placeholder="輸入股票代號，例如 2330" required>
-            <button type="submit">新增股票</button>
-        </form>
         <form method="POST" action="{% url 'batch_add_stocks' %}" class="batch-add-form">
             {% csrf_token %}
-            <textarea name="symbols" rows="3"
-                placeholder="批量新增，代號用逗號或空白分隔，例如 2330, 2317, 2454（建議一次 10 檔內，最多 {{ max_batch_size }} 檔）"></textarea>
-            <button type="submit">批量新增</button>
+            <textarea name="symbols" rows="2" required
+                placeholder="新增股票，代號用逗號或空白分隔，例如 2330 或 2330, 2317, 2454（建議一次 10 檔內，最多 {{ max_batch_size }} 檔）"></textarea>
+            <button type="submit">新增股票</button>
         </form>
         {% if queue_items %}
             <div class="message">

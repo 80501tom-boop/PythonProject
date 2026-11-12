@@ -152,10 +152,10 @@ def add_stock(request):
     if not symbol:
         return redirect("index")
 
-    return submit_stock_additions(request, [symbol], single=True)
+    return submit_stock_additions(request, [symbol])
 
 
-def submit_stock_additions(request, raw_items, single=False):
+def submit_stock_additions(request, raw_items):
     """單檔與批量新增共用：驗證、查詢名稱市場、寫入 Stock，並排入同一條背景佇列。"""
 
     try:
@@ -203,7 +203,7 @@ def submit_stock_additions(request, raw_items, single=False):
 
     start_queue(symbols, settings.BASE_DIR, months_since_history_start())
 
-    if single:
+    if len(symbols) == 1:
         messages.info(
             request,
             f"已排入 {symbols[0]} 背景抓取歷史股價，完成後會自動加入模型，進度請看首頁狀態。",
