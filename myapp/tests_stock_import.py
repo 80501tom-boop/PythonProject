@@ -9,19 +9,24 @@ from datetime import datetime
 from unittest import mock
 
 import pandas as pd
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase
 
 from myapp.import_status import (
     HISTORY_START_YEAR,
     IMPORT_STALE_SECONDS,
-    batch_lock_path,
-    batch_symbols,
     import_stage,
     import_status,
     months_since_history_start,
     running_imports,
 )
-from myapp.models import Stock
+from myapp.stock_queue import (
+    last_results,
+    lock_path,
+    normalize_symbols,
+    queue_results,
+    write_last_results,
+    write_queue_results,
+)
 
 
 class ImportStatusTests(SimpleTestCase):
@@ -149,68 +154,7 @@ class FindIncompleteAdjustedTests(SimpleTestCase):
         )
 
 
-class AddStockPipelineTests(TestCase):
-    """新增股票流程：抓取失敗要移除紀錄，且不再執行後續步驟。"""
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        sys.modules.pop("scripts.add_stock_pipeline", None)
-        cls.pipeline = importlib.import_module("scripts.add_stock_pipeline")
-
-    def _run_main(self, results):
-        calls = []
-
-        def fake_run_step(label, rel_path, extra_args=()):
-            calls.append(label)
-            return results[label]
-
-        argv = ["add_stock_pipeline.py", "9999", "71"]
-        with mock.patch.object(sys, "argv", argv), \
-                mock.patch.object(self.pipeline, "run_step", side_effect=fake_run_step):
-            try:
-                self.pipeline.main()
-                code = 0
-            except SystemExit as e:
-                code = e.code
-        return calls, code
-
-    def test_import_failure_removes_stock_and_stops(self):
-        Stock.objects.create(symbol="9999", name="測試", market="TWSE")
-
-        calls, code = self._run_main({"歷史股價抓取": False})
-
-        self.assertEqual(calls, ["歷史股價抓取"])
-        self.assertEqual(code, 1)
-        self.assertFalse(Stock.objects.filter(symbol="9999").exists())
-
-    def test_adjust_failure_keeps_stock_and_skips_forward(self):
-        Stock.objects.create(symbol="9999", name="測試", market="TWSE")
-
-        calls, code = self._run_main({
-            "歷史股價抓取": True,
-            "adjust_prices.py": False,
-            "forward_prediction.py": True,
-        })
-
-        self.assertEqual(calls, ["歷史股價抓取", "adjust_prices.py"])
-        self.assertEqual(code, 1)
-        self.assertTrue(Stock.objects.filter(symbol="9999").exists())
-
-    def test_all_steps_success_runs_everything(self):
-        calls, code = self._run_main({
-            "歷史股價抓取": True,
-            "adjust_prices.py": True,
-            "forward_prediction.py": True,
-        })
-
-        self.assertEqual(
-            calls, ["歷史股價抓取", "adjust_prices.py", "forward_prediction.py"]
-        )
-        self.assertEqual(code, 0)
-
-
-class BatchSymbolsTests(SimpleTestCase):
+class StockQueueTests(SimpleTestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         os.makedirs(os.path.join(self.tmp.name, "data", "import_logs"))
@@ -219,18 +163,34 @@ class BatchSymbolsTests(SimpleTestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def test_missing_lock_returns_empty(self):
-        self.assertEqual(batch_symbols(self.base), [])
+    def test_missing_lock_returns_none(self):
+        self.assertIsNone(queue_results(self.base))
 
-    def test_fresh_lock_returns_symbols(self):
-        with open(batch_lock_path(self.base), "w", encoding="utf-8") as f:
-            f.write("2330,2317")
-        self.assertEqual(batch_symbols(self.base), ["2330", "2317"])
+    def test_fresh_lock_returns_statuses(self):
+        write_queue_results(self.base, {"2330": "處理中", "2317": "等待中"})
+        self.assertEqual(
+            queue_results(self.base), {"2330": "處理中", "2317": "等待中"}
+        )
 
     def test_stale_lock_is_ignored(self):
-        path = batch_lock_path(self.base)
-        with open(path, "w", encoding="utf-8") as f:
-            f.write("2330")
+        write_queue_results(self.base, {"2330": "處理中"})
+        path = lock_path(self.base)
         old = os.path.getmtime(path) - IMPORT_STALE_SECONDS - 10
         os.utime(path, (old, old))
-        self.assertEqual(batch_symbols(self.base), [])
+        self.assertIsNone(queue_results(self.base))
+
+    def test_last_results_round_trip(self):
+        self.assertIsNone(last_results(self.base))
+        write_last_results(self.base, {"2330": "完成"})
+        self.assertEqual(last_results(self.base)["results"], {"2330": "完成"})
+
+    def test_normalize_symbols_dedupes_and_pads(self):
+        self.assertEqual(
+            normalize_symbols(["2330, 50 2330，2317.TW"]),
+            ["2330", "0050", "2317"],
+        )
+
+    def test_normalize_symbols_rejects_non_digits(self):
+        with self.assertRaises(ValueError):
+            normalize_symbols(["23A0"])
+

@@ -91,13 +91,20 @@
         <form method="POST" action="{% url 'batch_add_stocks' %}" class="batch-add-form">
             {% csrf_token %}
             <textarea name="symbols" rows="3"
-                placeholder="批量新增，代號用逗號或空白分隔，例如 2330, 2317, 2454（一次最多 {{ batch_max_size }} 檔）"></textarea>
+                placeholder="批量新增，代號用逗號或空白分隔，例如 2330, 2317, 2454（建議一次 10 檔內，最多 {{ max_batch_size }} 檔）"></textarea>
             <button type="submit">批量新增</button>
         </form>
-        {% if batch_status %}
+        {% if queue_items %}
             <div class="message">
-                批量新增進度：
-                {% for item in batch_status %}
+                新增股票進度（依序抓取）：
+                {% for item in queue_items %}
+                    {{ item.symbol }}（{{ item.status }}）{% if not forloop.last %}、{% endif %}
+                {% endfor %}
+            </div>
+        {% elif last_items %}
+            <div class="message{% if last_failed %} error{% endif %}">
+                上次新增結果（{{ last_finished }}）：
+                {% for item in last_items %}
                     {{ item.symbol }}（{{ item.status }}）{% if not forloop.last %}、{% endif %}
                 {% endfor %}
             </div>

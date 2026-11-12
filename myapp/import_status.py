@@ -9,8 +9,6 @@ from datetime import datetime
 
 HISTORY_START_YEAR = 2021
 IMPORT_STALE_SECONDS = 60 * 60
-BATCH_LOCK_NAME = "batch.lock"
-BATCH_MAX_SIZE = 20
 
 
 def months_since_history_start(now=None):
@@ -64,25 +62,6 @@ def running_imports(base_dir, now=None):
             running.append(symbol)
 
     return sorted(running)
-
-
-def batch_lock_path(base_dir):
-    return os.path.join(str(base_dir), "data", "import_logs", BATCH_LOCK_NAME)
-
-
-def batch_symbols(base_dir, now=None):
-    """回傳批量執行中的代號清單；無執行或鎖檔過期（程序已中斷）則回傳空清單。"""
-    path = batch_lock_path(base_dir)
-
-    if not os.path.isfile(path):
-        return []
-
-    now = now or time.time()
-    if now - os.path.getmtime(path) >= IMPORT_STALE_SECONDS:
-        return []
-
-    with open(path, encoding="utf-8") as f:
-        return [s.strip() for s in f.read().split(",") if s.strip()]
 
 
 def import_status(symbol, base_dir, now=None):

@@ -19,21 +19,23 @@ from django.views.decorators.http import require_POST
 from config import TOP_N
 
 from .import_status import (
-    BATCH_MAX_SIZE,
-    HISTORY_START_YEAR,
-    batch_lock_path,
-    batch_symbols,
     import_stage,
     import_status,
     months_since_history_start,
     running_imports,
 )
 from .models import Stock, StockPrice, PredictionHistory
-
-from scripts.import_history import (
-    update_stock,
-    update_all_stocks,
+from .stock_queue import (
+    MAX_BATCH_SIZE,
+    last_results,
+    lookup_stock,
+    normalize_symbols,
+    queue_results,
+    save_stock,
+    start_queue,
 )
+
+from scripts.import_history import update_all_stocks
 
 # ============================================================
 # 首頁
@@ -101,11 +103,20 @@ def index(request):
             )
         )
 
-    batch_list = batch_symbols(settings.BASE_DIR)
-    batch_status = [
-        {"symbol": s, "status": import_status(s, settings.BASE_DIR) or "等待中"}
-        for s in batch_list
+    active_queue = queue_results(settings.BASE_DIR)
+    last = None if active_queue else last_results(settings.BASE_DIR)
+
+    queue_items = [
+        {"symbol": s, "status": status}
+        for s, status in (active_queue or {}).items()
     ]
+    last_items = [
+        {"symbol": s, "status": status}
+        for s, status in ((last or {}).get("results") or {}).items()
+    ]
+    last_failed = any(
+        item["status"] not in ("完成",) for item in last_items
+    )
 
     context = {
         "page_obj": page_obj,  # ⚠️ 這裡改傳遞 page_obj 取代原本的 stocks
@@ -114,8 +125,11 @@ def index(request):
         "latest_data_date": latest_data_date,
         "latest_predictions": latest_predictions,
         "latest_model_version": latest_model_version,
-        "batch_status": batch_status,
-        "batch_max_size": BATCH_MAX_SIZE,
+        "queue_items": queue_items,
+        "last_items": last_items,
+        "last_finished": (last or {}).get("finished"),
+        "last_failed": last_failed,
+        "max_batch_size": MAX_BATCH_SIZE,
     }
 
     return render(request, "stocks/index.html", context)
@@ -138,333 +152,75 @@ def add_stock(request):
     if not symbol:
         return redirect("index")
 
-    # 統一代號格式（避免 6488.0 / 空白）
-    symbol = str(symbol).split(".")[0].zfill(4)
+    return submit_stock_additions(request, [symbol], single=True)
 
-    # 歷史股價抓取中才限制；還原股價與前瞻預測階段不擋新增
-    running = running_imports(settings.BASE_DIR)
 
-    if batch_symbols(settings.BASE_DIR) or running:
-        messages.info(
-            request,
-            f"目前 {'、'.join(running)} 正在抓取歷史股價，"
-            "請等抓取完成後再新增下一檔（避免 API 限流）。"
-        )
-        return redirect("index")
-
-    # =====================================
-    # 1) 先查 TWSE（上市）
-    # =====================================
-
-    twse_url = (
-        "https://openapi.twse.com.tw/"
-        "v1/exchangeReport/STOCK_DAY_ALL"
-    )
-
-    stock_data = None
-    market = None
+def submit_stock_additions(request, raw_items, single=False):
+    """單檔與批量新增共用：驗證、查詢名稱市場、寫入 Stock，並排入同一條背景佇列。"""
 
     try:
-
-        response = requests.get(
-            twse_url,
-            timeout=10
-        )
-
-        response.raise_for_status()
-
-        data = response.json()
-
-        for item in data:
-
-            code = str(
-                item.get("Code", "")
-            ).strip().zfill(4)
-
-            if code == symbol:
-
-                stock_data = {
-                    "symbol": code,
-                    "name": str(
-                        item.get("Name", "")
-                    ).strip(),
-                }
-
-                market = "TWSE"
-                break
-
-    except Exception as e:
-
-        print(
-            "TWSE API 錯誤：",
-            e
-        )
-
-    # =====================================
-    # 2) TWSE 找不到再查 TPEx（上櫃）
-    # =====================================
-
-    if not stock_data:
-
-        tpex_url = (
-            "https://www.tpex.org.tw/openapi/v1/"
-            "tpex_mainboard_daily_close_quotes"
-        )
-
-        try:
-
-            response = requests.get(
-                tpex_url,
-                timeout=10
-            )
-
-            response.raise_for_status()
-
-            data = response.json()
-
-            for item in data:
-
-                code = str(
-                    item.get(
-                        "SecuritiesCompanyCode",
-                        ""
-                    )
-                ).strip().zfill(4)
-
-                if code == symbol:
-
-                    stock_data = {
-                        "symbol": code,
-                        "name": str(
-                            item.get(
-                                "CompanyName",
-                                ""
-                            )
-                        ).strip(),
-                    }
-
-                    market = "TPEx"
-                    break
-
-        except Exception as e:
-
-            print(
-                "TPEx API 錯誤：",
-                e
-            )
-
-    # =====================================
-    # 3) 兩邊都找不到
-    # =====================================
-
-    if not stock_data:
-
-        print(
-            f"找不到股票：{symbol}"
-        )
-
+        symbols = normalize_symbols(raw_items)
+    except ValueError as e:
+        messages.error(request, str(e))
         return redirect("index")
-
-    # =====================================
-    # 4) 建立 / 更新 Stock
-    # =====================================
-
-    stock, created = (
-        Stock.objects.get_or_create(
-
-            symbol=symbol,
-
-            defaults={
-                "name": stock_data.get(
-                    "name",
-                    ""
-                ),
-                "market": market,
-            }
-        )
-    )
-
-    if not created:
-
-        new_name = stock_data.get(
-            "name",
-            stock.name
-        )
-
-        changed = False
-
-        if new_name and stock.name != new_name:
-            stock.name = new_name
-            changed = True
-
-        if market and stock.market != market:
-            stock.market = market
-            changed = True
-
-        if changed:
-            stock.save(
-                update_fields=["name", "market"]
-            )
-
-    # =====================================
-    # 5) 歷史資料檢查（保留原流程）
-    # =====================================
-
-    print()
-    print("=" * 60)
-    print(
-        f"股票 {symbol} 歷史資料檢查"
-    )
-    print("=" * 60)
-
-    try:
-
-        has_history = StockPrice.objects.filter(
-            stock=stock
-        ).exists()
-
-        if not has_history:
-
-            print(
-                f"{symbol} 尚無歷史資料"
-            )
-
-            months = months_since_history_start()
-
-            log_dir = os.path.join(
-                str(settings.BASE_DIR), "data", "import_logs"
-            )
-            os.makedirs(log_dir, exist_ok=True)
-            log_path = os.path.join(log_dir, f"{symbol}.log")
-
-            print(
-                f"開始背景抓取 {symbol} 歷史資料"
-                f"（{HISTORY_START_YEAR} 年起，共 {months} 個月）"
-                f"，記錄：{log_path}"
-            )
-
-            messages.info(
-                request,
-                f"已開始背景抓取 {symbol} 歷史資料（{months} 個月），"
-                "完成後會自動加入模型，進度請看下方狀態"
-            )
-
-            with open(log_path, "w", encoding="utf-8") as log_file:
-                subprocess.Popen(
-                    [
-                        sys.executable,
-                        os.path.join(
-                            str(settings.BASE_DIR),
-                            "scripts",
-                            "add_stock_pipeline.py",
-                        ),
-                        symbol,
-                        str(months),
-                    ],
-                    cwd=str(settings.BASE_DIR),
-                    stdout=log_file,
-                    stderr=subprocess.STDOUT,
-                    env={
-                        **os.environ,
-                        "PYTHONIOENCODING": "utf-8",
-                        "PYTHONUNBUFFERED": "1",
-                    },
-                )
-
-        else:
-
-            print(
-                f"{symbol} 已有歷史資料"
-            )
-
-            print(
-                f"檢查是否需要更新..."
-            )
-
-            update_stock(
-                symbol
-            )
-
-            print(
-                f"{symbol} 資料檢查完成"
-            )
-
-    except Exception as e:
-
-        print(
-            "歷史資料更新錯誤：",
-            e
-        )
-
-    print("=" * 60)
-
-    return redirect(
-        "stock_detail",
-        symbol=symbol
-    )
-
-
-@require_POST
-def batch_add_stocks(request):
-    raw = request.POST.get("symbols", "")
-
-    symbols = []
-    for part in raw.replace("，", ",").replace(",", " ").split():
-        code = part.strip().split(".")[0].zfill(4)
-        if code not in symbols:
-            symbols.append(code)
 
     if not symbols:
         messages.error(request, "請輸入至少一個股票代號")
         return redirect("index")
 
-    if not all(code.isdigit() for code in symbols):
-        messages.error(request, "股票代號只能是數字")
-        return redirect("index")
-
-    if len(symbols) > BATCH_MAX_SIZE:
+    if len(symbols) > MAX_BATCH_SIZE:
         messages.error(
             request,
-            f"一次最多 {BATCH_MAX_SIZE} 檔，目前輸入 {len(symbols)} 檔，"
-            "請分批送出。"
+            f"一次最多 {MAX_BATCH_SIZE} 檔，目前輸入 {len(symbols)} 檔，請分批送出。",
         )
         return redirect("index")
 
-    if batch_symbols(settings.BASE_DIR) or running_imports(settings.BASE_DIR):
+    if queue_results(settings.BASE_DIR) or running_imports(settings.BASE_DIR):
         messages.info(
             request,
-            "目前已有股票正在背景處理，請等完成後再送出批量新增。"
+            "目前已有股票正在背景處理，請等完成後再送出（避免 API 限流）。",
         )
         return redirect("index")
 
-    os.makedirs(os.path.join(str(settings.BASE_DIR), "data", "import_logs"), exist_ok=True)
-    with open(batch_lock_path(settings.BASE_DIR), "w", encoding="utf-8") as f:
-        f.write(",".join(symbols))
+    unknown = []
+    for symbol in symbols:
+        if Stock.objects.filter(symbol=symbol).exists():
+            continue
 
-    subprocess.Popen(
-        [
-            sys.executable,
-            os.path.join(str(settings.BASE_DIR), "scripts", "batch_add_stocks.py"),
-            *symbols,
-            "--months",
-            str(months_since_history_start()),
-        ],
-        cwd=str(settings.BASE_DIR),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        env={
-            **os.environ,
-            "PYTHONIOENCODING": "utf-8",
-            "PYTHONUNBUFFERED": "1",
-        },
-    )
+        info = lookup_stock(symbol)
+        if info is None:
+            unknown.append(symbol)
+            continue
+
+        save_stock(symbol, info)
+
+    if unknown:
+        messages.error(
+            request,
+            f"找不到股票代號：{'、'.join(unknown)}（TWSE / TPEx 皆無此代號），未排入新增。",
+        )
+        return redirect("index")
+
+    start_queue(symbols, settings.BASE_DIR, months_since_history_start())
+
+    if single:
+        messages.info(
+            request,
+            f"已排入 {symbols[0]} 背景抓取歷史股價，完成後會自動加入模型，進度請看首頁狀態。",
+        )
+        return redirect("stock_detail", symbol=symbols[0])
 
     messages.info(
         request,
-        f"已排入批量新增 {len(symbols)} 檔：{'、'.join(symbols)}。"
-        "會依序抓取，前一檔完成才開始下一檔，進度請看首頁。"
+        f"已排入 {len(symbols)} 檔依序背景抓取：{'、'.join(symbols)}。"
+        "前一檔完成才開始下一檔，進度請看首頁狀態。",
     )
     return redirect("index")
+
+
+@require_POST
+def batch_add_stocks(request):
+    return submit_stock_additions(request, [request.POST.get("symbols", "")])
 
 
 # ============================================================

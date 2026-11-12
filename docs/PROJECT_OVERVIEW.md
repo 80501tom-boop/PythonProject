@@ -36,8 +36,8 @@
 4. `python myapp/ml/evaluate_forward_predictions.py`：到期紀錄評估（以還原價計算實際報酬）。
 5. `python scripts/judge_forward.py`（選做）：超額報酬與 95% CI 判斷，不存檔。
 
-網頁新增股票流程（`scripts/add_stock_pipeline.py`）：
-匯入 2021/1/1 起（或上市櫃起始）股價 → 重算還原價 → 重跑前瞻。匯入失敗會刪除該股紀錄。
+網頁新增股票流程（單檔與批量共用同一條佇列，執行器為 `scripts/batch_add_stocks.py`）：
+匯入 2021/1/1 起（或上市櫃起始）股價 → 重算還原價 → 重跑前瞻。單一股票匯入失敗會刪除該股紀錄；未處理的股票也會刪除（無歷史資料者）。
 
 ---
 
@@ -52,7 +52,8 @@
 | `scripts/fetch_exright.py` | 抓取最新除權息，累加到 `data/exright_fetched.csv` |
 | `scripts/adjust_prices.py` | 產生還原價與事件，含寫入前檢查 |
 | `scripts/fetch_monthly_revenue.py` | 抓月營收（輸出路徑未逐一核對，修改前請先確認） |
-| `scripts/add_stock_pipeline.py` | 網頁新增股票的背景流程 |
+| `scripts/batch_add_stocks.py` | 新增股票的背景執行器（單檔與批量共用，依序抓取） |
+| `myapp/stock_queue.py` | 新增股票佇列：代號解析、名稱市場查詢、鎖檔與結果 |
 | `myapp/import_status.py` | 歷史資料抓取狀態判斷（進行中／完成／失敗） |
 | `myapp/ml/forward_prediction.py` | 前瞻預測、排名、mom20 並列對照 |
 | `myapp/ml/evaluate_forward_predictions.py` | 前瞻評估，寫入資料庫 |
