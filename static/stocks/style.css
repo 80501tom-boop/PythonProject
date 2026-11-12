@@ -107,6 +107,43 @@ a {
     background: #1d4ed8;
 }
 
+/* 批量新增：外觀與單檔 .search-form 一致 */
+.batch-add-form {
+    display: flex;
+    max-width: 650px;
+    margin: 16px auto 0;
+}
+
+.batch-add-form textarea {
+    flex: 1;
+    min-height: 52px;
+    padding: 14px;
+    font-family: inherit;
+    font-size: 16px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px 0 0 8px;
+    outline: none;
+    resize: vertical;
+}
+
+.batch-add-form textarea:focus {
+    border-color: #2563eb;
+}
+
+.batch-add-form button {
+    padding: 14px 28px;
+    border: none;
+    background: #2563eb;
+    color: white;
+    font-size: 16px;
+    border-radius: 0 8px 8px 0;
+    cursor: pointer;
+}
+
+.batch-add-form button:hover {
+    background: #1d4ed8;
+}
+
 
 /* =========================
    股票清單
@@ -209,6 +246,19 @@ a {
     }
 
     .search-form button {
+        margin-top: 10px;
+    }
+
+    .batch-add-form {
+        flex-direction: column;
+    }
+
+    .batch-add-form textarea,
+    .batch-add-form button {
+        border-radius: 8px;
+    }
+
+    .batch-add-form button {
         margin-top: 10px;
     }
 }
