@@ -20,6 +20,7 @@ import subprocess
 import sys
 import threading
 import time
+from datetime import date, timedelta
 
 import django
 
@@ -139,6 +140,23 @@ def append_log(symbol, text):
         f.write(text + "\n")
 
 
+def is_up_to_date(stock):
+    """資料庫最後日期已達最近一個平日即視為最新，不發任何請求；假日情況交由增量更新確認。"""
+    last = (
+        StockPrice.objects.filter(stock=stock)
+        .order_by("-date")
+        .values_list("date", flat=True)
+        .first()
+    )
+    if last is None:
+        return False
+
+    expected = date.today()
+    while expected.weekday() >= 5:
+        expected -= timedelta(days=1)
+    return last >= expected
+
+
 def run_history_step(symbol, months):
     """months 為 None 時做增量更新（import_history.py 單代號模式），否則抓完整歷史。"""
     log_path = os.path.join(LOG_DIR, f"{symbol}.log")
@@ -224,6 +242,12 @@ def main():
                 stock = save_stock(symbol, info)
 
             had_history = StockPrice.objects.filter(stock=stock).exists()
+            if had_history and is_up_to_date(stock):
+                print(f"{symbol} 已有最新資料，略過抓取", flush=True)
+                results[symbol] = "歷史已抓取"
+                ready.append(symbol)
+                write_queue_results(BASE_DIR, results)
+                continue
             ok, limited = run_history_step(symbol, None if had_history else months)
 
             if ok:
