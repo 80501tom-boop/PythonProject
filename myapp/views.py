@@ -3,6 +3,7 @@ import json
 import os
 import subprocess
 import sys
+from collections import Counter
 from datetime import datetime
 
 import numpy as np
@@ -1570,6 +1571,49 @@ def market_strategy(request):
     )
 
 
+BENCHMARK_SYMBOL = "0050"
+
+
+def _load_benchmark_price_map():
+    """
+    讀取 0050 還原收盤價，與預測評估使用同一份還原價資料。
+    還原價檔不存在時回傳空 dict，績效頁仍可顯示其他欄位。
+    """
+    from myapp.ml.evaluate_forward_predictions import load_adjusted_map
+
+    try:
+        rows = load_adjusted_map().get(BENCHMARK_SYMBOL, [])
+    except FileNotFoundError:
+        return {}
+
+    return dict(rows)
+
+
+def _benchmark_return_for_batch(batch_records, benchmark_prices):
+    """
+    計算與該批次 Top N 相同評估區間的 0050 實際報酬（百分比）。
+    同批次的股票共用基準日與實際日，取出現次數最多的區間。
+    """
+    windows = Counter(
+        (row.data_date, row.actual_date)
+        for row in batch_records
+        if row.actual_date is not None
+    )
+
+    if not windows:
+        return None
+
+    (base_day, end_day), _ = windows.most_common(1)[0]
+
+    base_price = benchmark_prices.get(base_day)
+    end_price = benchmark_prices.get(end_day)
+
+    if not base_price or not end_price or base_price <= 0:
+        return None
+
+    return float((end_price / base_price - 1) * 100)
+
+
 def prediction_performance(request):
     """
     V6.2：前瞻預測績效儀表板
@@ -1626,6 +1670,7 @@ def prediction_performance(request):
     )
 
     batch_performance = []
+    benchmark_prices = _load_benchmark_price_map()
 
     for batch_date in batch_dates:
         batch_records = [
@@ -1655,16 +1700,29 @@ def prediction_performance(request):
             if row.actual_return_20 is not None
         ]
 
+        topn_avg = (
+            sum(topn_returns) / len(topn_returns)
+            if topn_returns else None
+        )
+
+        benchmark_return = _benchmark_return_for_batch(
+            batch_records,
+            benchmark_prices,
+        )
+
         batch_performance.append({
             "prediction_date": batch_date,
             "topn_count": len(topn_returns),
-            "topn_actual_avg": (
-                sum(topn_returns) / len(topn_returns)
-                if topn_returns else None
-            ),
+            "topn_actual_avg": topn_avg,
             "universe_actual_avg": (
                 sum(all_returns) / len(all_returns)
                 if all_returns else None
+            ),
+            "benchmark_return": benchmark_return,
+            "topn_excess_return": (
+                topn_avg - benchmark_return
+                if topn_avg is not None and benchmark_return is not None
+                else None
             ),
             "topn_stocks": topn,
         })

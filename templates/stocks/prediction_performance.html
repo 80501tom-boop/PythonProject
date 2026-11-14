@@ -267,6 +267,8 @@
                         <th>Top 10 評估數</th>
                         <th>Top 10 實際平均報酬</th>
                         <th>全樣本平均報酬</th>
+                        <th>0050 實際報酬</th>
+                        <th>Top 10 超額報酬</th>
                     </tr>
                 </thead>
 
@@ -297,10 +299,36 @@
                                 —
                             {% endif %}
                         </td>
+
+                        <td>
+                            {% if batch.benchmark_return != None %}
+                                {{ batch.benchmark_return|floatformat:2 }}%
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {% if batch.topn_excess_return != None %}
+                                {% if batch.topn_excess_return > 0 %}
+                                    <span class="return-positive">
+                                        +{{ batch.topn_excess_return|floatformat:2 }}%
+                                    </span>
+                                {% elif batch.topn_excess_return < 0 %}
+                                    <span class="return-negative">
+                                        {{ batch.topn_excess_return|floatformat:2 }}%
+                                    </span>
+                                {% else %}
+                                    {{ batch.topn_excess_return|floatformat:2 }}%
+                                {% endif %}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="4" class="performance-empty">
+                        <td colspan="6" class="performance-empty">
                             尚無完成評估的預測資料。<br>
                             待累積未來 20 個交易日的資料後，系統將開始統計績效。
                         </td>
