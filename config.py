@@ -7,7 +7,6 @@
 因此需在 django.setup() 之後才能匯入。
 """
 
-import csv
 import os
 import sys
 from datetime import date
@@ -16,7 +15,7 @@ from datetime import date
 def _load_stock_pool():
     """從資料庫 Stock 表讀取股票池。
 
-    ETF 以代號開頭 "00" 判定；pool_start 由 _load_pool_start() 補上。
+    ETF 以代號開頭 "00" 判定；pool_start 目前固定為 None。
     若 Django 尚未初始化（例如直接執行 python -c "import config"），會自動初始化。
     """
     import django
@@ -55,37 +54,10 @@ POOL_SYMBOLS = [item["symbol"] for item in STOCK_POOL]
 TOP_N = 10
 
 # False：只要在股票池內且當天有資料即納入排名（不看首次納入日）
-# True ：依 data/pool_history.csv 的 pool_start 做 point-in-time 過濾
+# True ：依 pool_start 做 point-in-time 過濾（目前 pool_start 皆為 None，等同 False）
 USE_POOL_START = False
 
 POOL_BY_SYMBOL = {item["symbol"]: item for item in STOCK_POOL}
-
-POOL_HISTORY_PATH = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)),
-    "data",
-    "pool_history.csv",
-)
-
-
-def _load_pool_start():
-    """從 data/pool_history.csv 讀取 pool_start（空白表示資料起點即納入）。"""
-    if not os.path.exists(POOL_HISTORY_PATH):
-        return
-
-    with open(POOL_HISTORY_PATH, encoding="utf-8", newline="") as f:
-        for row in csv.DictReader(f):
-            item = POOL_BY_SYMBOL.get(row["symbol"].strip())
-
-            if item is None:
-                continue
-
-            value = (row.get("pool_start") or "").strip()
-            item["pool_start"] = (
-                date.fromisoformat(value) if value else None
-            )
-
-
-_load_pool_start()
 
 
 def is_eligible(symbol, day):

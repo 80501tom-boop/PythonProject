@@ -7,13 +7,11 @@
 - 結束後刪除鎖檔，結果寫入 data/import_logs/batch_last.json 供首頁顯示。
 """
 
-import csv
 import json
 import os
 import subprocess
 import sys
 import time
-from datetime import date
 
 import requests
 
@@ -106,34 +104,6 @@ def save_stock(symbol, info):
             stock.save(update_fields=["name", "market"])
 
     return stock
-
-
-def append_pool_history(symbol, info, today=None):
-    """新增股票時同步寫入 data/pool_history.csv；代號已存在則略過。"""
-    from config import POOL_HISTORY_PATH
-
-    today = today or date.today()
-    fields = ["symbol", "asset_type", "market", "pool_start", "source"]
-
-    if os.path.exists(POOL_HISTORY_PATH):
-        with open(POOL_HISTORY_PATH, encoding="utf-8", newline="") as f:
-            if any(row["symbol"].strip() == symbol for row in csv.DictReader(f)):
-                return
-        needs_header = os.path.getsize(POOL_HISTORY_PATH) == 0
-    else:
-        needs_header = True
-
-    with open(POOL_HISTORY_PATH, "a", encoding="utf-8", newline="") as f:
-        writer = csv.writer(f)
-        if needs_header:
-            writer.writerow(fields)
-        writer.writerow([
-            symbol,
-            "ETF" if symbol.startswith("00") else "STOCK",
-            info["market"],
-            today.isoformat(),
-            f"{today:%m/%d} 新增",
-        ])
 
 
 def write_queue_results(base_dir, results):

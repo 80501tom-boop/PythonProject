@@ -26,7 +26,6 @@ from .import_status import (
 from .models import Stock, StockPrice, PredictionHistory
 from .stock_queue import (
     MAX_BATCH_SIZE,
-    append_pool_history,
     last_results,
     lookup_stock,
     normalize_symbols,
@@ -202,7 +201,6 @@ def submit_stock_additions(request, raw_items):
             continue
 
         save_stock(symbol, info)
-        append_pool_history(symbol, info)
 
     if unknown:
         messages.error(
