@@ -396,6 +396,7 @@
 
                     <div class="top-symbol">
                         {{ stock.symbol }}
+                        {% if stock.name %}<span class="muted">{{ stock.name }}</span>{% endif %}
                     </div>
 
                     <div class="top-price">
@@ -458,6 +459,7 @@
                         <tr>
                             <th>排名</th>
                             <th>股票代號</th>
+                            <th>股票名稱</th>
                             <th>收盤價</th>
                             <th>預測 20 日報酬</th>
                         </tr>
@@ -476,6 +478,10 @@
 
                             <td>
                                 <strong>{{ stock.symbol }}</strong>
+                            </td>
+
+                            <td>
+                                {{ stock.name }}
                             </td>
 
                             <td>

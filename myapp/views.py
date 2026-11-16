@@ -635,6 +635,22 @@ def market_ranking(request):
                 "records"
             )
 
+            name_map = {
+                str(stock.symbol).zfill(4): stock.name
+                for stock in Stock.objects.all()
+            }
+
+            # Stock 表缺少的新增股票，改用預測紀錄中的名稱
+            for symbol, stock_name in (
+                PredictionHistory.objects
+                .filter(prediction_date=prediction_date)
+                .values_list("symbol", "stock_name")
+            ):
+                name_map.setdefault(str(symbol).zfill(4), stock_name)
+
+            for row in ranking:
+                row["name"] = name_map.get(row["symbol"], "")
+
     return render(
         request,
         "stocks/market_ranking.html",
