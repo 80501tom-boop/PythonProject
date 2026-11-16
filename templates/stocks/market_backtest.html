@@ -940,38 +940,6 @@
         </div>
 
 
-        <!-- =================================================
-             圖表 2
-        ================================================== -->
-
-        <div class="chart-block">
-
-
-            <h3>
-                累積報酬
-            </h3>
-
-
-            <p class="chart-description">
-
-                將各回測期間的實際報酬依序累積，
-                觀察整個回測期間的報酬變化趨勢。
-
-            </p>
-
-
-            <div class="chart-container">
-
-                <canvas
-                    id="cumulativeChart"
-                ></canvas>
-
-            </div>
-
-
-        </div>
-
-
         {% else %}
 
 
@@ -1339,10 +1307,7 @@ const performanceData = [
             Number("{{ row.predicted_return|default:0 }}"),
 
         actual:
-            Number("{{ row.actual_return|default:0 }}"),
-
-        cumulative:
-            Number("{{ row.cumulative_return|default:0 }}")
+            Number("{{ row.actual_return|default:0 }}")
     }
 
     {% if not forloop.last %},{% endif %}
@@ -2037,42 +2002,12 @@ function drawPredictionChart() {
 
 
 /* =========================================================
-   圖表 2
-   累積報酬
-========================================================= */
-
-function drawCumulativeChart() {
-
-    drawLineChart(
-
-        "cumulativeChart",
-
-        [
-
-            {
-                key: "cumulative",
-
-                label: "累積報酬",
-
-                color: "#16a34a"
-            }
-
-        ]
-
-    );
-
-}
-
-
-/* =========================================================
    初始化
 ========================================================= */
 
 function drawAllCharts() {
 
     drawPredictionChart();
-
-    drawCumulativeChart();
 
 }
 
