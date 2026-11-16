@@ -157,15 +157,15 @@
     <section class="quick-links">
         <a class="quick-card" href="{% url 'market_ranking' %}">
             <strong>AI 選股排名</strong>
-            <span>每日預測排名</span>
+            <span>每日預測前幾名股票</span>
         </a>
         <a class="quick-card" href="{% url 'prediction_history' %}">
             <strong>歷史預測</strong>
-            <span>過去的預測紀錄</span>
+            <span>查看過去每次的預測結果</span>
         </a>
         <a class="quick-card" href="{% url 'prediction_performance' %}">
             <strong>預測績效</strong>
-            <span>預測準確度統計</span>
+            <span>檢查過去預測是否準確</span>
         </a>
         <a class="quick-card" href="{% url 'market_backtest' %}">
             <strong>回測結果</strong>
@@ -173,7 +173,7 @@
         </a>
         <a class="quick-card" href="{% url 'market_strategy' %}">
             <strong>策略回測</strong>
-            <span>Top-N 選股策略績效</span>
+            <span>比較前 10 名選股與 0050 的表現</span>
         </a>
         <a class="quick-card" href="{% url 'admin:login' %}">
             <strong>登入</strong>
