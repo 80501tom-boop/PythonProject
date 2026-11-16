@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Top-10 策略（49 檔選股池）與 0050 基準比較
+Top-10 策略（64 檔選股池）與 0050 基準比較
 
 功能：
 1. 讀取 market_backtest.csv（0050 基準來自 bench_return_20）。
@@ -222,7 +222,7 @@ def plot_comparison(result):
     )
 
     ax.set_title(
-        "Top-10 Strategy (49-Stock Pool) vs. 0050",
+        "Top-10 Strategy (64-Stock Pool) vs. 0050",
         fontsize=15,
         pad=14,
     )
