@@ -73,7 +73,7 @@
 | `twse_exright_2021_2026.csv` | 上市除權息原始資料（CP950） | `adjust_prices.py` 讀取 |
 | `tpex_exright_2021_2026.csv` | 上櫃除權息原始資料（CP950） | 同上 |
 | `manual_events.csv` | `symbol, ex_date, factor, note` | 手動事件，例如 0050 的 1 拆 4 |
-| `pool_history.csv` | `symbol, asset_type, market, pool_start, source` | 股票類型與市場；納入日僅在 `USE_POOL_START=True` 時使用 |
+| `pool_history.csv` | `symbol, asset_type, market, pool_start, source` | 股票類型與市場；網頁新增股票時自動追加一列（pool_start 為新增當日）；納入日僅在 `USE_POOL_START=True` 時使用 |
 
 **快取（`data/`，不進版控）**
 
