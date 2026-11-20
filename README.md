@@ -49,6 +49,39 @@
 4. 評估到期紀錄：`python myapp/ml/evaluate_forward_predictions.py`，或網頁「評估歷史預測績效」。
 5. 判斷（選做）：`python scripts/judge_forward.py`，只在需要看超額與 CI 時執行，結果不存檔。
 
+### 自動執行（Windows）
+
+`scripts/run_daily.sh` 會依序執行上述步驟 1–4，任一步失敗即中止。當天日誌已有「每日流程結束」時會直接略過，因此同一天重跑不會重複執行。日誌寫入 `logs/daily_YYYYmmdd.log`。
+
+執行需要 Git for Windows（提供 `bash`）。
+
+設定排程（PowerShell，路徑請依實際專案位置修改，並先切換到 `main` 分支）：
+
+```
+$action = New-ScheduledTaskAction -Execute "C:\Program Files\Git\bin\bash.exe" -Argument '-lc "cd /c/venv1/PythonProject && PYTHON=/c/venv1/Scripts/python.exe bash scripts/run_daily.sh"' -WorkingDirectory "C:\venv1\PythonProject"
+$trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday,Tuesday,Wednesday,Thursday,Friday -At 18:30
+$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -WakeToRun -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+Register-ScheduledTask -TaskName "PythonProject 每日流程" -Action $action -Trigger $trigger -Settings $settings
+```
+
+確認設定：
+
+```
+Get-ScheduledTask -TaskName "PythonProject 每日流程" | Get-ScheduledTaskInfo | Select-Object LastRunTime, LastTaskResult, NextRunTime
+```
+
+`LastTaskResult` 為 `0` 表示上次執行成功。
+
+停止自動執行：
+
+```
+Disable-ScheduledTask -TaskName "PythonProject 每日流程"     # 暫停，可用 Enable-ScheduledTask 恢復
+Unregister-ScheduledTask -TaskName "PythonProject 每日流程" -Confirm:$false   # 完全刪除
+Stop-ScheduledTask -TaskName "PythonProject 每日流程"       # 停止正在執行的流程
+```
+
+注意：刪除 `run_daily.sh` 不會停止排程，工作仍會啟動但失敗，請使用上述指令停用或刪除工作。
+
 注意：不要因短期結果調整模型或參數。判斷以 12 個月以上的前瞻為準。
 
 ## 限制
