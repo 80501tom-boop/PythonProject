@@ -30,6 +30,7 @@ db.sqlite3
 /dividend_events.csv
 /data/exright_fetched.csv
 /data/import_logs/
+/logs/
 /price_gap_report.csv
 myapp/ml/models/*.txt
 
