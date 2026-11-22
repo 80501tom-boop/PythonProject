@@ -11,6 +11,7 @@
 | V5.1 | `myapp/ml/backtest_market_model.py` | 底層模型：12 個技術特徵的 LightGBM，產生每檔股票的預測報酬 |
 | V5.9 | `myapp/ml/backtest_topn_strategy.py` | **主結果**：在 V5.1 預測上做 Top-10 選股與績效計算 |
 | V5.9-FORWARD | `myapp/ml/forward_prediction.py` | 每日前瞻預測，供網站展示與長期驗證（V5.8 起股票池為 49 檔，V5.9 加入 15 檔） |
+| V5.9-MA200F | `myapp/ml/backtest_filtered_strategy.py` | 空頭濾網（獨立版本，不影響 V5.9）：0050 收盤低於 200 日均線時持股降為 50%，參數見 `docs/BEAR_FILTER_PLAN.md`；讀取 V5.9 輸出，不修改之 |
 | 穩健性佐證 | `scripts/evaluate_ranking.py` | 獨立評估：5 個橫斷面特徵、walk-forward、20 日 embargo、保留期、bootstrap CI |
 
 股票池與基準定義於 `config.py`，0050 為基準、不納入選股。
