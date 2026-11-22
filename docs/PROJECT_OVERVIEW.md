@@ -59,6 +59,7 @@
 | `myapp/ml/evaluate_forward_predictions.py` | 前瞻評估，寫入資料庫 |
 | `myapp/ml/backtest_market_model.py` | ML 回測，逐日與每 5 交易日取樣 |
 | `myapp/ml/backtest_topn_strategy.py` | Top-N 策略回測，28 日曆天非重疊調倉，含 mom20 對照 |
+| `myapp/ml/backtest_filtered_strategy.py` | 空頭濾網版本 V5.9-MA200F：唯讀取用 V5.9 輸出與 `adjusted_prices.csv`，輸出 `market_strategy_filtered_{backtest,summary,groups}.csv`；規劃見 `docs/BEAR_FILTER_PLAN.md` |
 | `scripts/evaluate_ranking.py` | 穩健性比較：IC、5 日反轉、低波動、mom20、混合分數 |
 | `scripts/judge_forward.py` | 前瞻判斷：淨超額、bootstrap CI、三段式標準 |
 | `scripts/plot_*.py` | 報告圖表 |

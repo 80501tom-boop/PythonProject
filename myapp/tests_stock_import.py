@@ -195,3 +195,94 @@ class StockQueueTests(SimpleTestCase):
         with self.assertRaises(ValueError):
             normalize_symbols(["23A0"])
 
+
+
+class BearFilterTests(SimpleTestCase):
+    """空頭濾網（V5.9-MA200F）：訊號邏輯、無未來資料、成本。"""
+
+    @staticmethod
+    def _bench(values, start="2024-01-01"):
+        dates = pd.bdate_range(start, periods=len(values))
+        return pd.DataFrame({"date": dates, "adj_close": values})
+
+    def _signal(self, bench, day):
+        from myapp.ml.backtest_filtered_strategy import compute_filter_signal
+        return compute_filter_signal(bench, day)
+
+    def test_below_ma_is_bear_and_halves_exposure(self):
+        from myapp.ml.backtest_filtered_strategy import exposure_for
+        bench = self._bench([100.0] * 199 + [90.0])
+        signal = self._signal(bench, bench["date"].iloc[-1])
+        self.assertTrue(signal["bear"])
+        self.assertEqual(exposure_for(signal), 0.5)
+
+    def test_equal_to_ma_is_bull(self):
+        bench = self._bench([100.0] * 200)
+        signal = self._signal(bench, bench["date"].iloc[-1])
+        self.assertTrue(signal["available"])
+        self.assertFalse(signal["bear"])
+
+    def test_warmup_has_no_signal_and_full_exposure(self):
+        from myapp.ml.backtest_filtered_strategy import exposure_for
+        bench = self._bench([100.0] * 150 + [10.0])
+        signal = self._signal(bench, bench["date"].iloc[-1])
+        self.assertFalse(signal["available"])
+        self.assertEqual(exposure_for(signal), 1.0)
+
+    def test_signal_ignores_future_prices(self):
+        bench = self._bench([100.0] * 260)
+        day = bench["date"].iloc[230]
+        before = self._signal(bench, day)
+        crashed = bench.copy()
+        crashed.loc[crashed["date"] > day, "adj_close"] = 1.0
+        after = self._signal(crashed, day)
+        self.assertEqual(before, after)
+
+    def test_includes_as_of_day_close(self):
+        bench = self._bench([100.0] * 230 + [50.0] + [100.0] * 5)
+        day = bench["date"].iloc[230]
+        self.assertTrue(self._signal(bench, day)["bear"])
+
+    def test_missing_as_of_day_uses_previous_row(self):
+        bench = self._bench([100.0] * 230)
+        sunday = bench["date"].iloc[-1] + pd.Timedelta(days=2)
+        signal = self._signal(bench, sunday)
+        self.assertEqual(signal["close"], 100.0)
+
+    def test_group_boundaries(self):
+        from myapp.ml.backtest_filtered_strategy import GROUP_LABELS, assign_group
+        self.assertEqual(
+            [assign_group(x) for x in (-5.01, -5, 0, 5, 5.01)],
+            [GROUP_LABELS[0], GROUP_LABELS[1], GROUP_LABELS[2], GROUP_LABELS[2], GROUP_LABELS[3]],
+        )
+
+    def test_cost_matches_v59_when_fully_invested(self):
+        from myapp.ml.backtest_filtered_strategy import weight_change
+        a, b = set("ABCDEFGHIJ"), set("ABCDEFGHKL")
+        # V5.9：換手 20% -> 單邊 0.1% × 2 × 0.2；首期買進 1.0
+        self.assertAlmostEqual(weight_change(None, 1.0, a, 1.0), 1.0)
+        self.assertAlmostEqual(weight_change(a, 1.0, b, 1.0), 0.4)
+
+    def test_cost_when_cutting_exposure_with_same_picks(self):
+        from myapp.ml.backtest_filtered_strategy import weight_change
+        a = set("ABCDEFGHIJ")
+        self.assertAlmostEqual(weight_change(a, 1.0, a, 0.5), 0.5)
+
+    def test_full_exposure_period_matches_v59(self):
+        from myapp.ml.backtest_filtered_strategy import build_filtered_periods
+        dates = pd.to_datetime(["2024-01-02", "2024-02-01"])
+        picks = {dates[0]: set("ABCDEFGHIJ"), dates[1]: set("ABCDEFGHKL")}
+        strategy = pd.DataFrame({
+            "date": dates,
+            "actual_avg": [3.0, -2.0],
+            "market_avg": [1.0, 0.5],
+            "turnover": [1.0, 0.2],
+            "excess_return_net": [3.0 - 1.0 - 0.1, -2.0 - 0.5 - 0.04],
+            "rank_ic": [0.1, 0.2],
+            "direction_accuracy": [60.0, 50.0],
+        })
+        bench = self._bench([100.0] * 10)  # 暖機期：不減碼
+        result = build_filtered_periods(strategy, picks, bench)
+        self.assertEqual(list(result["exposure"]), [1.0, 1.0])
+        for got, expected in zip(result["excess_return_net"], strategy["excess_return_net"]):
+            self.assertAlmostEqual(got, expected)
