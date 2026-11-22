@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+{% load static %}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>空頭濾網｜台股 AI 選股驗證平台</title>
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: "Microsoft JhengHei", "PingFang TC", Arial, sans-serif;
+            background: linear-gradient(135deg, #f4f7fb, #eef2f7);
+            color: #1f2937;
+            min-height: 100vh;
+        }
+
+        .container { width: 92%; max-width: 1300px; margin: 0 auto; padding: 35px 0 60px; }
+
+        .header, .section {
+            background: #ffffff;
+            border-radius: 18px;
+            padding: 26px 30px;
+            margin-bottom: 24px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05);
+        }
+
+        .brand { font-size: 12px; letter-spacing: 2px; color: #64748b; margin-bottom: 8px; }
+        h1 { font-size: 28px; margin-bottom: 10px; }
+        .subtitle { color: #64748b; line-height: 1.8; font-size: 14px; }
+
+        .section-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+        .section-desc { color: #64748b; font-size: 13px; margin-bottom: 16px; line-height: 1.7; }
+
+        .error {
+            background: #fff1f2; border: 1px solid #fecdd3; color: #be123c;
+            border-radius: 12px; padding: 15px 18px; margin-bottom: 20px; font-size: 14px;
+        }
+
+        .summary-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr);
+            gap: 16px; margin-bottom: 24px;
+        }
+        .card {
+            background: #ffffff; border-radius: 16px; padding: 20px;
+            border: 1px solid #e5e7eb; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05);
+        }
+        .card-label { color: #64748b; font-size: 14px; margin-bottom: 10px; }
+        .card-value { font-size: 26px; font-weight: 700; }
+        .card-desc { margin-top: 8px; color: #94a3b8; font-size: 12px; line-height: 1.6; }
+
+        .positive { color: #059669; }
+        .negative { color: #dc2626; }
+
+        .table-wrapper { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th {
+            background: #f8fafc; color: #475569; text-align: right;
+            padding: 11px 10px; border-bottom: 1px solid #e2e8f0; white-space: nowrap;
+        }
+        td { padding: 10px; border-bottom: 1px solid #f1f5f9; text-align: right; white-space: nowrap; }
+        th:first-child, td:first-child { text-align: left; }
+        tr:hover td { background: #f8fafc; }
+        tr.bear td { background: #fff7ed; }
+        tr.total td { font-weight: 700; background: #f1f5f9; }
+
+        .note {
+            margin-top: 16px; background: #f8fafc; border-left: 4px solid #64748b;
+            padding: 14px 17px; color: #475569; font-size: 13px; line-height: 1.8;
+        }
+        .note.warn { border-left-color: #d97706; background: #fffbeb; }
+        .note ul { margin: 6px 0 0 20px; }
+
+        @media (max-width: 1000px) { .summary-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 600px) { .summary-grid { grid-template-columns: 1fr; } }
+    </style>
+
+    <link rel="stylesheet" href="{% static 'stocks/base.css' %}">
+</head>
+
+<body>
+{% include 'stocks/partials/navbar.html' %}
+
+<div class="container">
+
+    <div class="header">
+        <div class="brand">STOCK AI · V5.9-MA200F</div>
+        <h1>空頭趨勢濾網（與 V5.9 回測對照）</h1>
+        <div class="subtitle">
+            規則：每個調倉日，若 0050 還原收盤價低於 200 日均線，持股降為 50%，其餘為現金（報酬 0%）；
+            前 200 個交易日不足時維持滿倉。選股、成本（單邊 0.1%）與最大回撤算法皆與 V5.9 相同。
+            所有參數在看回測結果前已固定，不依結果調整。
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="error">⚠ {{ error }}</div>
+    {% endif %}
+
+    {% if main %}
+
+    <div class="summary-grid">
+        <div class="card">
+            <div class="card-label">最大回撤（扣成本）</div>
+            <div class="card-value">{{ main.max_drawdown_net|floatformat:2 }}%</div>
+            <div class="card-desc">V5.9：{{ main.v59_max_drawdown_net|floatformat:2 }}%</div>
+        </div>
+        <div class="card">
+            <div class="card-label">平均淨超額（相對 0050）</div>
+            <div class="card-value">{{ main.average_excess_net|floatformat:2 }}%</div>
+            <div class="card-desc">V5.9：{{ main.v59_average_excess_net|floatformat:2 }}%</div>
+        </div>
+        <div class="card">
+            <div class="card-label">與 V5.9 的差異（95% CI）</div>
+            <div class="card-value">{{ main.diff_excess_net|floatformat:2 }}%</div>
+            <div class="card-desc">[{{ main.diff_ci_low|floatformat:2 }}%, {{ main.diff_ci_high|floatformat:2 }}%]；區間包含 0 表示無法確認差異</div>
+        </div>
+        <div class="card">
+            <div class="card-label">空頭訊號期數 / 總期數</div>
+            <div class="card-value">{{ main.bear_signal_periods }} / {{ main.backtest_periods }}</div>
+            <div class="card-desc">暖機（無訊號）{{ main.warmup_periods }} 期；訊號切換 {{ main.signal_switches }} 次；平均持股 {{ main.average_exposure|floatformat:2 }}</div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">全期對照</div>
+        <div class="section-desc">{{ main.start_date }} 至 {{ main.end_date }}。全現金版僅為事先登記的敏感度報告，不取代主方案。</div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>版本</th>
+                        <th>空頭持股</th>
+                        <th>平均實際報酬</th>
+                        <th>平均淨超額</th>
+                        <th>淨超額 95% CI</th>
+                        <th>最大回撤（毛）</th>
+                        <th>最大回撤（淨）</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>V5.9（不使用濾網）</td>
+                        <td>100%</td>
+                        <td>{{ v59_average_actual|floatformat:2 }}%</td>
+                        <td>{{ main.v59_average_excess_net|floatformat:2 }}%</td>
+                        <td>—</td>
+                        <td>{{ main.v59_max_drawdown|floatformat:2 }}%</td>
+                        <td>{{ main.v59_max_drawdown_net|floatformat:2 }}%</td>
+                    </tr>
+                    {% for s in summaries %}
+                    <tr>
+                        <td>{% if s.variant == 'main' %}V5.9-MA200F（主方案）{% else %}敏感度：空頭全現金{% endif %}</td>
+                        <td>{% widthratio s.reduced_exposure 1 100 %}%</td>
+                        <td>{{ s.average_actual|floatformat:2 }}%</td>
+                        <td>{{ s.average_excess_net|floatformat:2 }}%</td>
+                        <td>[{{ s.excess_net_ci_low|floatformat:2 }}%, {{ s.excess_net_ci_high|floatformat:2 }}%]</td>
+                        <td>{{ s.max_drawdown|floatformat:2 }}%</td>
+                        <td>{{ s.max_drawdown_net|floatformat:2 }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">依大盤 20 日報酬分組</div>
+        <div class="section-desc">分組依據為 0050 該期實際 20 日報酬（事後分組，僅供報告）。差異 = 濾網 − V5.9（淨超額）。</div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>大盤 20 日報酬</th>
+                        <th>期數</th>
+                        <th>空頭訊號期數</th>
+                        <th>平均持股</th>
+                        <th>V5.9 超額（淨）</th>
+                        <th>濾網超額（淨）</th>
+                        <th>差異</th>
+                        <th>差異 95% CI</th>
+                        <th>RankIC</th>
+                        <th>方向準確率</th>
+                        <th>V5.9 回撤</th>
+                        <th>濾網回撤</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for g in groups %}
+                    <tr>
+                        <td>{{ g.group }}</td>
+                        <td>{{ g.periods }}</td>
+                        <td>{{ g.bear_signal_periods }}</td>
+                        <td>{{ g.avg_exposure|floatformat:2 }}</td>
+                        <td>{{ g.v59_excess_net|floatformat:2 }}%</td>
+                        <td>{{ g.filtered_excess_net|floatformat:2 }}%</td>
+                        <td>{{ g.diff_excess_net|floatformat:2 }}%</td>
+                        <td>{% if g.diff_ci_low is not None %}[{{ g.diff_ci_low|floatformat:2 }}%, {{ g.diff_ci_high|floatformat:2 }}%]{% else %}—{% endif %}</td>
+                        <td>{{ g.rank_ic|floatformat:3 }}</td>
+                        <td>{{ g.direction_accuracy|floatformat:1 }}%</td>
+                        <td>{{ g.v59_max_drawdown_net|floatformat:2 }}%</td>
+                        <td>{{ g.filtered_max_drawdown_net|floatformat:2 }}%</td>
+                    </tr>
+                    {% endfor %}
+                    {% for g in all_group %}
+                    <tr class="total">
+                        <td>{{ g.group }}</td>
+                        <td>{{ g.periods }}</td>
+                        <td>{{ g.bear_signal_periods }}</td>
+                        <td>{{ g.avg_exposure|floatformat:2 }}</td>
+                        <td>{{ g.v59_excess_net|floatformat:2 }}%</td>
+                        <td>{{ g.filtered_excess_net|floatformat:2 }}%</td>
+                        <td>{{ g.diff_excess_net|floatformat:2 }}%</td>
+                        <td>[{{ g.diff_ci_low|floatformat:2 }}%, {{ g.diff_ci_high|floatformat:2 }}%]</td>
+                        <td>{{ g.rank_ic|floatformat:3 }}</td>
+                        <td>{{ g.direction_accuracy|floatformat:1 }}%</td>
+                        <td>{{ g.v59_max_drawdown_net|floatformat:2 }}%</td>
+                        <td>{{ g.filtered_max_drawdown_net|floatformat:2 }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="note">
+            RankIC 與方向準確率在兩個版本相同：濾網只改持股比例，不改選股，因此無法修正模型在大跌期的排序失準。
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">依事前訊號分組</div>
+        <div class="section-desc">依調倉日當天可得的訊號分組（不含暖機期），是實際操作時真的能事先知道的分法。</div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>訊號</th>
+                        <th>期數</th>
+                        <th>V5.9 平均報酬</th>
+                        <th>濾網平均報酬</th>
+                        <th>V5.9 超額（淨）</th>
+                        <th>濾網超額（淨）</th>
+                        <th>差異 95% CI</th>
+                        <th>V5.9 回撤</th>
+                        <th>濾網回撤</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for g in signal_groups %}
+                    <tr>
+                        <td>{{ g.group }}</td>
+                        <td>{{ g.periods }}</td>
+                        <td>{{ g.v59_avg_return|floatformat:2 }}%</td>
+                        <td>{{ g.filtered_avg_return|floatformat:2 }}%</td>
+                        <td>{{ g.v59_excess_net|floatformat:2 }}%</td>
+                        <td>{{ g.filtered_excess_net|floatformat:2 }}%</td>
+                        <td>{% if g.diff_ci_low is not None %}[{{ g.diff_ci_low|floatformat:2 }}%, {{ g.diff_ci_high|floatformat:2 }}%]{% else %}—{% endif %}</td>
+                        <td>{{ g.v59_max_drawdown_net|floatformat:2 }}%</td>
+                        <td>{{ g.filtered_max_drawdown_net|floatformat:2 }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">逐期明細（主方案）</div>
+        <div class="section-desc">橘底為空頭訊號期。報酬單位為 %。</div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>日期</th>
+                        <th>訊號</th>
+                        <th>0050 收盤</th>
+                        <th>MA200</th>
+                        <th>持股</th>
+                        <th>0050 20 日</th>
+                        <th>V5.9 報酬</th>
+                        <th>濾網報酬</th>
+                        <th>V5.9 超額（淨）</th>
+                        <th>濾網超額（淨）</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in periods %}
+                    <tr{% if p.bear_signal == 1 %} class="bear"{% endif %}>
+                        <td>{{ p.date }}</td>
+                        <td>{% if p.filter_available == 0 %}暖機{% elif p.bear_signal == 1 %}空頭{% else %}多頭{% endif %}</td>
+                        <td>{{ p.bench_close|floatformat:2 }}</td>
+                        <td>{{ p.bench_ma|floatformat:2 }}</td>
+                        <td>{{ p.exposure|floatformat:2 }}</td>
+                        <td>{{ p.market_avg|floatformat:2 }}</td>
+                        <td>{{ p.v59_actual_avg|floatformat:2 }}</td>
+                        <td>{{ p.actual_avg|floatformat:2 }}</td>
+                        <td>{{ p.v59_excess_net|floatformat:2 }}</td>
+                        <td>{{ p.excess_return_net|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">如何解讀</div>
+        <div class="note">
+            這是「用較少報酬換較小回撤」的交換，而不是免費的改善：
+            <ul>
+                <li>濾網只在大盤跌破長期均線後才減碼，急跌初期來不及反應；反彈時又會晚回場，減碼期間若大盤上漲，超額會變差。</li>
+                <li>看效果請以「最大回撤」與「絕對報酬」為主，不要只看相對 0050 的超額。</li>
+                <li>差異的 95% CI 若包含 0，代表無法確認濾網讓報酬變好或變差。</li>
+            </ul>
+        </div>
+        <div class="note warn">
+            統計限制：
+            <ul>
+                <li>僅約 65 期，大跌期只有 6 期；空頭訊號會連續出現，實際獨立樣本更少。</li>
+                <li>股票池為現在的 64 檔，存在存活者偏差，所有報酬偏樂觀。</li>
+                <li>回測沿用 V5.9 假設：調倉日收盤成交、單邊成本 0.1%、無滑價、現金報酬 0%。</li>
+                <li>依專案規定，不因短期結果調整參數；是否採用需看 12 個月以上的前瞻追蹤。</li>
+            </ul>
+        </div>
+    </div>
+
+    {% endif %}
+
+</div>
+
+</body>
+</html>

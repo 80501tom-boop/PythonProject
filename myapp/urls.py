@@ -45,6 +45,11 @@ urlpatterns = [
         name="market_strategy",
     ),
     path(
+        "bear-filter/",
+        views.bear_filter,
+        name="bear_filter",
+    ),
+    path(
         "prediction-history/",
         views.prediction_history,
         name="prediction_history"

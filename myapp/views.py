@@ -2147,3 +2147,64 @@ def run_update_all_stocks(request):
         cache.delete(LOCK_KEY)
 
     return redirect("index")
+
+# ============================================================
+# 空頭濾網策略（V5.9-MA200F）與 V5.9 對照
+# ============================================================
+
+def bear_filter(request):
+    """
+    讀取 backtest_filtered_strategy.py 的輸出，與 V5.9 並列比較。
+    輸出檔不進版控，缺檔時顯示提示而不報錯。
+    """
+    output_dir = os.path.join(settings.BASE_DIR, "myapp", "ml", "output")
+    paths = {
+        key: os.path.join(output_dir, f"market_strategy_filtered_{key}.csv")
+        for key in ("summary", "groups", "backtest")
+    }
+
+    context = {
+        "error": "",
+        "summaries": [],
+        "groups": [],
+        "signal_groups": [],
+        "periods": [],
+    }
+
+    missing = [os.path.basename(p) for p in paths.values() if not os.path.exists(p)]
+    if missing:
+        context["error"] = (
+            "找不到輸出檔：" + "、".join(missing)
+            + "。請先執行 python -m myapp.ml.backtest_filtered_strategy"
+        )
+        return render(request, "stocks/bear_filter.html", context)
+
+    try:
+        summary_df = pd.read_csv(paths["summary"])
+        groups_df = pd.read_csv(paths["groups"])
+        backtest_df = pd.read_csv(paths["backtest"])
+    except Exception as exc:
+        context["error"] = f"讀取濾網輸出失敗：{exc}"
+        return render(request, "stocks/bear_filter.html", context)
+
+    def clean(df):
+        df = df.astype(object).where(pd.notna(df), None)
+        return df.to_dict("records")
+
+    main_backtest = backtest_df[backtest_df["variant"] == "main"]
+    v59_average_actual = (
+        float(main_backtest["v59_actual_avg"].mean()) if not main_backtest.empty else None
+    )
+
+    context["summaries"] = clean(summary_df)
+    context["v59_average_actual"] = v59_average_actual
+
+    main_groups = groups_df[groups_df["variant"] == "main"]
+    context["groups"] = clean(main_groups[main_groups["group_by"] == "market_20d_return"])
+    context["signal_groups"] = clean(main_groups[main_groups["group_by"] == "signal"])
+    context["all_group"] = clean(main_groups[main_groups["group_by"] == "all"])
+
+    context["periods"] = clean(main_backtest)
+    context["main"] = context["summaries"][0] if context["summaries"] else None
+
+    return render(request, "stocks/bear_filter.html", context)
