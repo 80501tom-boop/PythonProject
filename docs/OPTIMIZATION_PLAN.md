@@ -9,7 +9,7 @@
 ## 執行狀態
 
 - **第一批已完成**（1.1、1.2、4.1、7.1、7.2）：`requirements.txt` 轉 UTF-8、補 `lightgbm==4.7.0`（依本地版本），
-  另發現 `settings.py` 使用的 `python-dotenv` 同樣漏列，已補上（未釘版，待本地 `pip show python-dotenv` 後再釘）；
+  另發現 `settings.py` 使用的 `python-dotenv` 同樣漏列，已補上並依本地版本釘為 `python-dotenv==1.2.3`；
   標準測試指令改為 `python manage.py test myapp`；README 新增快速開始；OVERVIEW 補 tests1 說明。
 - **其餘各批依使用者決定暫不執行**，下表維持規劃狀態。
 

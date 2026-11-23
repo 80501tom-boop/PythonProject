@@ -176,7 +176,7 @@ python scripts/judge_forward.py
 
 | commit | 內容 |
 |---|---|
-| （本次） | `requirements.txt` 改 UTF-8 並補 `lightgbm==4.7.0`、`python-dotenv`；標準測試指令改為 `python manage.py test myapp`；README 新增「快速開始」；規劃見 `docs/OPTIMIZATION_PLAN.md` 第一批 |
+| （本次） | `requirements.txt` 改 UTF-8 並補 `lightgbm==4.7.0`、`python-dotenv==1.2.3`；標準測試指令改為 `python manage.py test myapp`；README 新增「快速開始」；規劃見 `docs/OPTIMIZATION_PLAN.md` 第一批 |
 | `1af8bff` | `tests1` 過時測試改為快照模式 |
 | `c52534b`、`c410604`、`ba5c809` | 空頭濾網 V5.9-MA200F、測試與 `/bear-filter/` 對照頁（`c410604` 訊息誤寫為網頁，實際內容為濾網程式合併） |
 | `4f5a2c4` | judge 取樣改為 28 日曆天 |
