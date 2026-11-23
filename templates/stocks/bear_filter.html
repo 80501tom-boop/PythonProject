@@ -147,7 +147,7 @@
                         <td>100%</td>
                         <td>{{ v59_average_actual|floatformat:2 }}%</td>
                         <td>{{ main.v59_average_excess_net|floatformat:2 }}%</td>
-                        <td>—</td>
+                        <td>{% if v59_ci %}[{{ v59_ci.low|floatformat:2 }}%, {{ v59_ci.high|floatformat:2 }}%]{% else %}—{% endif %}</td>
                         <td>{{ main.v59_max_drawdown|floatformat:2 }}%</td>
                         <td>{{ main.v59_max_drawdown_net|floatformat:2 }}%</td>
                     </tr>

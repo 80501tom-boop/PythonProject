@@ -2199,6 +2199,18 @@ def bear_filter(request):
     context["summaries"] = clean(summary_df)
     context["v59_average_actual"] = v59_average_actual
 
+    # V5.9 淨超額 95% CI 取自 V5.9 自己的 summary（唯讀）；缺檔則不顯示
+    v59_summary_path = os.path.join(output_dir, "market_strategy_summary.csv")
+    context["v59_ci"] = None
+    if os.path.exists(v59_summary_path):
+        try:
+            v59_row = pd.read_csv(v59_summary_path).iloc[0]
+            low, high = v59_row["excess_net_ci_low"], v59_row["excess_net_ci_high"]
+            if pd.notna(low) and pd.notna(high):
+                context["v59_ci"] = {"low": float(low), "high": float(high)}
+        except Exception:
+            pass
+
     main_groups = groups_df[groups_df["variant"] == "main"]
     context["groups"] = clean(main_groups[main_groups["group_by"] == "market_20d_return"])
     context["signal_groups"] = clean(main_groups[main_groups["group_by"] == "signal"])
