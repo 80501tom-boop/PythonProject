@@ -4,7 +4,7 @@
 > 實作前須逐項確認；所有與模型或策略參數有關的改動，依 README「不要因短期結果調整模型或參數」，
 > 必須**先寫好規格與固定參數、再看結果**，並以新版本號、獨立輸出檔進行，不覆蓋 V5.1／V5.9／V5.9-FORWARD。
 
-優先度：🔴 高（影響正確性、安全或可重現性）／🟡 中（維護性、效率）／🟢 低（加分項）
+優先度：🔴 高（影響正確性、安全或可重現性）／🟡 中（維護性、效率）／🟢 低（加分項）／✅ 已完成（編號後標註）
 
 ## 執行狀態
 
@@ -19,8 +19,8 @@
 
 | # | 優先 | 現況 | 問題 | 建議 |
 |---|------|------|------|------|
-| 1.1 | 🔴 | `requirements.txt` 為 **UTF-16** 編碼（Windows `pip freeze >` 產生） | Linux／部分工具讀取會失敗 | 轉成 UTF-8 重新存檔 |
-| 1.2 | 🔴 | `requirements.txt` **沒有 `lightgbm`**，但 `forward_prediction.py`、`backtest_market_model.py` 都 `import lightgbm` | 新環境照 requirements 安裝會無法執行模型 | 補上 `lightgbm==<本地版本>`（以本地 `pip show lightgbm` 為準） |
+| 1.1 ✅ | 🔴 | `requirements.txt` 為 **UTF-16** 編碼（Windows `pip freeze >` 產生） | Linux／部分工具讀取會失敗 | 轉成 UTF-8 重新存檔。**已完成（`d42a3d6`）** |
+| 1.2 ✅ | 🔴 | `requirements.txt` **沒有 `lightgbm`**，但 `forward_prediction.py`、`backtest_market_model.py` 都 `import lightgbm` | 新環境照 requirements 安裝會無法執行模型 | 補上 `lightgbm==4.7.0`。**已完成**；同時補上漏列的 `python-dotenv==1.2.3`（`c9efa05`），本地 `pip check` 通過 |
 | 1.3 | 🟡 | 套件全部釘版，含 `curl_cffi`、`peewee`、`websockets` 等間接套件 | 升級困難、不易看出哪些是直接依賴 | 拆成 `requirements.in`（直接依賴）＋ 鎖定檔；或至少在 README 註明直接依賴 |
 | 1.4 | 🟡 | `config.py` 在 import 時就查詢資料庫 `Stock` 表 | 全新資料庫要先 `migrate` 才能跑任何指令；測試需 `--skip-checks` 繞過 | 改為延遲載入（函式呼叫時才查），或查詢失敗時回傳空池並警告 |
 | 1.5 | 🟡 | `scripts/run_daily.sh` 為 bash，使用者在 Windows 執行 | Windows 無法直接排程 | 新增等效 `run_daily.ps1`（或 Python 版 `run_daily.py`），可配合工作排程器 |
@@ -49,7 +49,7 @@
 
 | # | 優先 | 現況 | 建議 |
 |---|------|------|------|
-| 4.1 | 🔴 | OVERVIEW 的測試指令只跑 `myapp.tests_stock_import`，**沒跑 `tests1`**（之前過時測試因此沒被發現） | 標準指令改為 `python manage.py test myapp`，一次跑全部（目前共 33 項） |
+| 4.1 ✅ | 🔴 | OVERVIEW 的測試指令只跑 `myapp.tests_stock_import`，**沒跑 `tests1`**（之前過時測試因此沒被發現） | 標準指令改為 `python manage.py test myapp`，一次跑全部（共 33 項）。**已完成，本地 33 項全過** |
 | 4.2 | 🟡 | 沒有 CI（無 `.github/workflows`） | 新增 GitHub Actions：安裝依賴、SQLite 測試設定、跑全部測試；每次 push 自動檢查 |
 | 4.3 | 🟡 | 缺少「無未來資料洩漏」的自動檢查（V5.1／V5.9 主流程） | 新增測試：截斷 t 日之後的資料，t 日特徵與預測不應改變 |
 | 4.4 | 🟢 | 網頁 view 幾乎沒有測試 | 每頁加一個「CSV 存在／不存在都能回 200」的冒煙測試 |
@@ -77,8 +77,8 @@
 
 | # | 建議 |
 |---|------|
-| 7.1 | README 補「快速開始」：建立 venv、`.env`、`migrate`、匯入資料、跑測試、啟動網站 的完整順序 |
-| 7.2 | OVERVIEW 測試章節改為 `python manage.py test myapp`，並說明 `tests1` 內容 |
+| 7.1 ✅ | README 補「快速開始」：建立 venv、`.env`、`migrate`、匯入資料、跑測試、啟動網站 的完整順序。**已完成** |
+| 7.2 ✅ | OVERVIEW 測試章節改為 `python manage.py test myapp`，並說明 `tests1` 內容。**已完成** |
 | 7.3 | 列出各 CSV 輸出的「由哪支程式產生／哪個頁面讀取」對照表（部分已有，補齊 filtered 系列與 forward 系列） |
 
 ---
