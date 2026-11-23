@@ -63,7 +63,7 @@
 | `scripts/evaluate_ranking.py` | 穩健性比較：IC、5 日反轉、低波動、mom20、混合分數 |
 | `scripts/judge_forward.py` | 前瞻判斷：淨超額、bootstrap CI、三段式標準 |
 | `scripts/plot_*.py` | 報告圖表 |
-| `myapp/tests_stock_import.py` | 新增股票流程與還原價檢查的測試（13 項） |
+| `myapp/tests_stock_import.py` | 新增股票流程、還原價檢查與空頭濾網的測試（共 30 項，其中濾網 10 項） |
 
 ### 4.2 CSV
 
@@ -99,6 +99,7 @@
 | `market_strategy_backtest.csv`、`market_strategy_detail.csv`、`market_strategy_summary.csv` | `backtest_topn_strategy.py` | 策略回測 |
 | `market_strategy_mom20_benchmark.csv` | `backtest_topn_strategy.py` | mom20 對照 |
 | `ranking_evaluation.csv`、`ranking_paired_compare.csv`、`ranking_scope_compare.csv`、`ranking_yearly.csv` | `evaluate_ranking.py` | 穩健性比較 |
+| `market_strategy_filtered_backtest.csv`、`market_strategy_filtered_summary.csv`、`market_strategy_filtered_groups.csv` | `backtest_filtered_strategy.py` | 空頭濾網 |
 | `monthly_revenue.csv` | `fetch_monthly_revenue.py` | 月營收 |
 
 **報告（進版控）**
@@ -135,6 +136,7 @@
 | 空股票池 | 警告，不中斷 | 讓測試資料庫可以啟動 |
 | 還原價檢查 | 不完整即中止 | 避免用錯誤資料排名 |
 | 前瞻紀錄 | 同日同檔同版本不重寫 | 保證前瞻紀錄不被事後改寫 |
+| 空頭濾網參數 | MA200、空頭持股 50%，事前固定 | 避免依回測結果調參，見 `docs/BEAR_FILTER_PLAN.md` |
 
 ---
 
@@ -153,8 +155,11 @@
 ## 7. 維護指令
 
 ```
-# 測試（新增股票流程、還原價檢查）
+# 測試（新增股票流程、還原價檢查、空頭濾網）
 python manage.py test myapp.tests_stock_import -v 2
+
+# 空頭濾網回測（需先有 V5.9 輸出與 adjusted_prices.csv；不在每日流程內）
+python -m myapp.ml.backtest_filtered_strategy
 
 # 每日流程
 python scripts/import_history.py all
@@ -170,6 +175,7 @@ python scripts/judge_forward.py
 
 | commit | 內容 |
 |---|---|
+| `c52534b`、`c410604`、`ba5c809` | 空頭濾網 V5.9-MA200F、測試與 `/bear-filter/` 對照頁（`c410604` 訊息誤寫為網頁，實際內容為濾網程式合併） |
 | `4f5a2c4` | judge 取樣改為 28 日曆天 |
 | `78b8591` | 新增股票開始匯入時顯示訊息；README 補充自動新增說明 |
 | `cc0264e` | 股票池為空時改為警告 |
