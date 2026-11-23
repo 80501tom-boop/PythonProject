@@ -42,6 +42,15 @@
 3. 分年度看，ml_tuned 在 2024 年超額為 -1.26%，其餘年度多為正。
 4. 績效波動大：最大回撤接近 -30%，策略風險需與 0050 一併考量。
 
+## 快速開始（新環境）
+
+1. 建立並啟用虛擬環境，安裝依賴：`pip install -r requirements.txt`（需 MySQL 與可編譯 `mysqlclient` 的環境）。
+2. 複製 `.env.example` 為 `.env`，填入資料庫連線（`DB_NAME`、`DB_USER`、`DB_PASSWORD`、`DB_HOST`、`DB_PORT`）。
+3. 建立資料表：`python manage.py migrate`（`config.py` 匯入時會查詢 `Stock` 表，必須先完成）。
+4. 在網頁或以 `python scripts/import_history.py 代號` 新增股票並匯入歷史股價，再依下方「每日流程」執行還原價與預測。
+5. 啟動網站：`python manage.py runserver`。
+6. 執行全部測試：`python manage.py test myapp`（含 `tests_stock_import.py` 與 `tests1/`，共 33 項）。
+
 ## 前瞻追蹤（每日流程）
 
 0. 新增股票：在網頁輸入代號即可，系統會抓取 2021 年起（或上市櫃起始）的歷史股價，進度顯示於股票頁與首頁。新增後不會自動執行還原價與前瞻預測，需依下方步驟手動執行。

@@ -64,6 +64,7 @@
 | `scripts/judge_forward.py` | 前瞻判斷：淨超額、bootstrap CI、三段式標準 |
 | `scripts/plot_*.py` | 報告圖表 |
 | `myapp/tests_stock_import.py` | 新增股票流程、還原價檢查與空頭濾網的測試（共 30 項，其中濾網 10 項） |
+| `myapp/tests1/test_forward_prediction_save_history.py` | 前瞻紀錄寫入 `save_prediction_history` 的測試（3 項）：新增、未評估紀錄維持原值（快照模式）、已評估紀錄鎖定 |
 
 ### 4.2 CSV
 
@@ -155,8 +156,8 @@
 ## 7. 維護指令
 
 ```
-# 測試（新增股票流程、還原價檢查、空頭濾網）
-python manage.py test myapp.tests_stock_import -v 2
+# 全部測試（tests_stock_import.py 與 tests1/，共 33 項）
+python manage.py test myapp -v 2
 
 # 空頭濾網回測（需先有 V5.9 輸出與 adjusted_prices.csv；不在每日流程內）
 python -m myapp.ml.backtest_filtered_strategy
@@ -175,6 +176,8 @@ python scripts/judge_forward.py
 
 | commit | 內容 |
 |---|---|
+| （本次） | `requirements.txt` 改 UTF-8 並補 `lightgbm==4.7.0`、`python-dotenv`；標準測試指令改為 `python manage.py test myapp`；README 新增「快速開始」；規劃見 `docs/OPTIMIZATION_PLAN.md` 第一批 |
+| `1af8bff` | `tests1` 過時測試改為快照模式 |
 | `c52534b`、`c410604`、`ba5c809` | 空頭濾網 V5.9-MA200F、測試與 `/bear-filter/` 對照頁（`c410604` 訊息誤寫為網頁，實際內容為濾網程式合併） |
 | `4f5a2c4` | judge 取樣改為 28 日曆天 |
 | `78b8591` | 新增股票開始匯入時顯示訊息；README 補充自動新增說明 |
