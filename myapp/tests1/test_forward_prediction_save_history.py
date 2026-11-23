@@ -18,7 +18,7 @@ class SavePredictionHistoryLockingTests(TestCase):
     """
     驗證 save_prediction_history 的三種行為：
     1) 新增不存在紀錄
-    2) 覆寫未評估紀錄
+    2) 快照模式：未評估紀錄也維持原值
     3) 鎖定已評估紀錄（不覆寫）
     """
 
@@ -52,7 +52,7 @@ class SavePredictionHistoryLockingTests(TestCase):
         self.assertIsNone(obj.evaluated_at)
         self.assertIsNone(obj.actual_return_20)
 
-    def test_update_when_not_evaluated(self):
+    def test_keep_snapshot_when_not_evaluated(self):
         obj = PredictionHistory.objects.create(
             prediction_date=date(2026, 10, 22),
             data_date=date(2026, 10, 22),
@@ -84,11 +84,11 @@ class SavePredictionHistoryLockingTests(TestCase):
         save_prediction_history(result_df)
 
         obj.refresh_from_db()
-        self.assertEqual(obj.stock_name, "新名稱")
-        self.assertAlmostEqual(float(obj.close_price), 210.55, places=2)
-        self.assertAlmostEqual(float(obj.predicted_return_20), 3.1234, places=4)
-        self.assertEqual(obj.rank, 8)
-        self.assertEqual(obj.horizon, LOOK_FORWARD)
+        # 快照模式：同日同檔同版本已存在就不重寫
+        self.assertEqual(obj.stock_name, "舊名稱")
+        self.assertAlmostEqual(float(obj.close_price), 199.00, places=2)
+        self.assertAlmostEqual(float(obj.predicted_return_20), 1.1111, places=4)
+        self.assertEqual(obj.rank, 30)
 
     def test_lock_when_already_evaluated(self):
         evaluated_time = timezone.now()
